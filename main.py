@@ -29,9 +29,24 @@ class PetImageGenerator:
             if not os.path.exists(self.bg_image):
                 return None
 
+            # 调整背景图片大小为800x600
+            W, H = 800, 600
             bg = Image.open(self.bg_image)
-            if bg.size != (1640, 856):
-                bg = bg.resize((1640, 856))
+            bg = bg.resize((W, H))
+
+            draw = ImageDraw.Draw(bg)
+
+            # 设置字体
+            try:
+                if os.path.exists(self.font_path):
+                    font_title = ImageFont.truetype(self.font_path, 40)
+                    font_text = ImageFont.truetype(self.font_path, 28)
+                else:
+                    font_title = ImageFont.load_default()
+                    font_text = ImageFont.load_default()
+            except Exception:
+                font_title = ImageFont.load_default()
+                font_text = ImageFont.load_default()
 
             # 如果提供了宠物类型，尝试添加宠物图片
             if pet_type and pet_type in Pet.TYPE_IMAGES:
@@ -39,41 +54,25 @@ class PetImageGenerator:
                 pet_image_path = os.path.join(os.path.dirname(self.bg_image), f"{pet_image_name}.png")
                 if os.path.exists(pet_image_path):
                     try:
-                        pet_img = Image.open(pet_image_path)
+                        pet_img = Image.open(pet_image_path).convert("RGBA")
                         # 调整宠物图片大小
-                        pet_img = pet_img.resize((200, 200))
-                        # 将宠物图片粘贴到背景图片上
-                        bg.paste(pet_img, (50, 50))  # 在左上角附近粘贴宠物图片
+                        pet_img = pet_img.resize((300, 300))
+                        # 将宠物图片粘贴到背景图片上(左侧)
+                        bg.paste(pet_img, (50, 150), pet_img)
                     except Exception as e:
                         print(f"加载宠物图片失败: {e}")
 
-            draw = ImageDraw.Draw(bg)
+            # 绘制标题(居中)
+            title = "宠物信息"
+            draw.text((W / 2, 50), title, font=font_title, fill=(0, 0, 0), anchor="mt")
 
-            try:
-                if os.path.exists(self.font_path):
-                    font = ImageFont.truetype(self.font_path, font_size)
-                else:
-                    font = ImageFont.load_default()
-                    font_size = 16
-            except Exception:
-                font = ImageFont.load_default()
-                font_size = 16
-
-            # 处理多行文本
+            # 绘制文本信息(右侧)
             lines = text.split('\n')
-            y_offset = 100
-            line_spacing = font_size + 10
+            y_offset = 150
+            line_spacing = 30
             
             for line in lines:
-                # 计算文本位置（居中）
-                bbox = draw.textbbox((0, 0), line, font=font)
-                text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
-                
-                x = (1640 - text_width) / 2
-                y = y_offset
-                
-                draw.text((x, y), line, font=font, fill=(0, 0, 0))
+                draw.text((400, y_offset), line, font=font_text, fill=(0, 0, 0))
                 y_offset += line_spacing
 
             temp_path = os.path.join(os.path.dirname(self.bg_image), "temp_pet.png")
