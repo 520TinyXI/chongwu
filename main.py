@@ -20,7 +20,7 @@ from .pet import Pet, PetDatabase
 # PetImageGenerator类
 class PetImageGenerator:
     def __init__(self, plugin_dir: str):
-        self.bg_image = os.path.join(plugin_dir, "assets", "Basemap.png")
+        self.bg_image = os.path.join(plugin_dir, "assets", "background.png")
         self.font_path = os.path.join(plugin_dir, "assets", "font.ttf")
 
     async def create_pet_image(self, text: str, pet_type: str = None, font_size: int = 36) -> Union[str, None]:
