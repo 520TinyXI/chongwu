@@ -424,35 +424,53 @@ class QQPetPlugin(Star):
             if pet_data:
                 self.pets[user_id] = Pet.from_dict(pet_data)
     
-    @filter.command("创建宠物")
-    async def create_pet(self, event: AstrMessageEvent):
-        """创建宠物"""
+    @filter.command("领养宠物")
+    async def adopt_pet(self, event: AstrMessageEvent):
+        """领养宠物"""
         try:
             user_id = event.get_sender_id()
-            logger.info(f"用户 {user_id} 请求创建宠物")
+            logger.info(f"用户 {user_id} 请求领养宠物")
             
-            # 双重检查是否已创建宠物
+            # 双重检查是否已领养宠物
             if user_id in self.pets or self.db.get_pet_data(user_id):
-                yield event.plain_result("您已经创建了宠物！")
+                yield event.plain_result("您已经领养了宠物！")
                 return
             
             # 获取宠物名称（如果提供了的话）
             args = event.get_args()
-            pet_name = args[0] if args else f"宠物{user_id[-4:]}"  # 默认名称
+            pet_name = args[0] if args else None
             
-            # 随机选择宠物类型
-            pet_types = ["火", "水", "草", "电", "普通"]
-            pet_type = random.choice(pet_types)
+            # 预设宠物名称和类型
+            pet_options = [
+                {"name": "烈焰", "type": "火"},
+                {"name": "碧波兽", "type": "水"},
+                {"name": "莲莲草", "type": "草"},
+                {"name": "碎裂岩", "type": "土"},
+                {"name": "金刚", "type": "金"}
+            ]
             
-            # 创建宠物
-            pet = Pet(pet_name, pet_type)
+            if pet_name:
+                # 检查是否是预设名称
+                matched_pet = next((p for p in pet_options if p["name"] == pet_name), None)
+                if matched_pet:
+                    pet = Pet(matched_pet["name"], matched_pet["type"])
+                else:
+                    # 自定义名称，随机类型
+                    random_pet = random.choice(pet_options)
+                    pet = Pet(pet_name, random_pet["type"])
+            else:
+                # 随机发放宠物
+                random_pet = random.choice(pet_options)
+                pet = Pet(random_pet["name"], random_pet["type"])
+            
             self.pets[user_id] = pet
             
             # 保存到数据库
-            self.db.save_pet_data(user_id, pet.to_dict())
+            self.db.create_pet(user_id, pet.name, pet.type)
+            self.db.update_pet_data(user_id, **pet.to_dict())
             
             # 生成结果图片
-            result = f"成功创建宠物！\n名称: {pet.name}\n类型: {pet.type}\n属性: HP={pet.hp}, 攻击={pet.attack}, 防御={pet.defense}, 速度={pet.speed}"
+            result = f"成功领养宠物！\n名称: {pet.name}\n类型: {pet.type}\n属性: HP={pet.hp}, 攻击={pet.attack}, 防御={pet.defense}, 速度={pet.speed}"
             image_path = await self.img_gen.create_pet_image(result)
             if image_path:
                 yield event.image_result(image_path)
@@ -462,8 +480,265 @@ class QQPetPlugin(Star):
                 yield event.plain_result(result)
             
         except Exception as e:
-            logger.error(f"创建宠物失败: {str(e)}")
-            yield event.plain_result("创建宠物失败了~请联系管理员检查日志")
+            logger.error(f"领养宠物失败: {str(e)}")
+            yield event.plain_result("领养宠物失败了~请联系管理员检查日志")
+
+    @filter.command("宠物进化")
+    async def evolve_pet(self, event: AstrMessageEvent):
+        """宠物进化"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有领养宠物！请先使用'领养宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 检查是否可以进化
+            if not pet.can_evolve():
+                yield event.plain_result(f"{pet.name}还不能进化！需要达到{Pet.EVOLUTION_DATA.get(pet.name, {}).get('required_level', 10)}级")
+                return
+            
+            # 执行进化
+            result = pet.evolve()
+            
+            # 更新数据库
+            self.db.update_pet_data(
+                user_id,
+                pet_name=pet.name,
+                pet_type=pet.type,
+                level=pet.level,
+                exp=pet.exp,
+                hp=pet.hp,
+                attack=pet.attack,
+                defense=pet.defense,
+                speed=pet.speed,
+                skills=pet.skills
+            )
+            
+            # 生成进化结果图片
+            image_path = await self.img_gen.create_pet_image(result)
+            if image_path:
+                yield event.image_result(image_path)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+            else:
+                yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"宠物进化失败: {str(e)}")
+            yield event.plain_result("宠物进化失败了~请联系管理员检查日志")
+
+    @filter.command("我的宠物")
+    async def my_pet(self, event: AstrMessageEvent):
+        """生成宠物状态卡"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有领养宠物！请先使用'领养宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 更新宠物状态
+            pet.update_status()
+            
+            # 保存到数据库
+            self.db.update_pet_data(user_id, **pet.to_dict())
+            
+            # 生成状态卡图片
+            result = str(pet)
+            image_path = await self.img_gen.create_pet_image(result)
+            if image_path:
+                yield event.image_result(image_path)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+            else:
+                yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"生成状态卡失败: {str(e)}")
+            yield event.plain_result("生成状态卡失败了~请联系管理员检查日志")
+
+    @filter.command("对决")
+    async def duel_pet(self, event: AstrMessageEvent):
+        """与其他玩家进行PVP对战"""
+        try:
+            user_id = event.get_sender_id()
+            args = event.get_args()
+            
+            # 检查参数
+            if not args or len(args) < 1:
+                yield event.plain_result("请使用格式: /对决 @某人")
+                return
+            
+            # 解析对手ID（这里简化处理，实际可能需要从@提及中提取）
+            opponent_id = args[0].replace("@", "")
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有领养宠物！请先使用'领养宠物'命令")
+                return
+            
+            # 检查对手是否存在宠物
+            if opponent_id not in self.pets and not self.db.get_pet_data(opponent_id):
+                yield event.plain_result(f"对手{opponent_id}还没有领养宠物！")
+                return
+            
+            # 加载对手宠物
+            if opponent_id not in self.pets:
+                pet_data = self.db.get_pet_data(opponent_id)
+                if pet_data:
+                    self.pets[opponent_id] = Pet.from_dict(pet_data)
+                else:
+                    yield event.plain_result(f"无法加载对手{opponent_id}的宠物数据！")
+                    return
+            
+            pet = self.pets[user_id]
+            opponent_pet = self.pets[opponent_id]
+            
+            # 检查宠物是否存活
+            if not pet.is_alive():
+                yield event.plain_result(f"{pet.name}已经失去战斗能力，请先治疗！")
+                return
+            
+            if not opponent_pet.is_alive():
+                yield event.plain_result(f"对手的{opponent_pet.name}已经失去战斗能力，请等待对手治疗后再挑战！")
+                return
+            
+            # 检查冷却时间
+            if not pet.is_battle_available():
+                yield event.plain_result(f"{pet.name}还在冷却中，请30分钟后再进行对决！")
+                return
+            
+            # 对战过程
+            battle_log = f"{pet.name} vs {opponent_pet.name}\n" + "="*30 + "\n"
+            
+            # 决定先手
+            player_first = pet.speed >= opponent_pet.speed
+            
+            while pet.is_alive() and opponent_pet.is_alive():
+                if player_first:
+                    # 玩家攻击
+                    damage = pet.calculate_damage(opponent_pet)
+                    opponent_pet.hp = max(0, opponent_pet.hp - damage)
+                    battle_log += f"{pet.name}攻击{opponent_pet.name}，造成{damage}点伤害！\n"
+                    
+                    # 检查对手是否被击败
+                    if not opponent_pet.is_alive():
+                        battle_log += f"{opponent_pet.name}被击败了！\n"
+                        break
+                    
+                    # 对手攻击
+                    damage = opponent_pet.calculate_damage(pet)
+                    pet.hp = max(0, pet.hp - damage)
+                    battle_log += f"{opponent_pet.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                else:
+                    # 对手攻击
+                    damage = opponent_pet.calculate_damage(pet)
+                    pet.hp = max(0, pet.hp - damage)
+                    battle_log += f"{opponent_pet.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                    
+                    # 检查玩家是否被击败
+                    if not pet.is_alive():
+                        battle_log += f"{pet.name}被击败了！\n"
+                        break
+                    
+                    # 玩家攻击
+                    damage = pet.calculate_damage(opponent_pet)
+                    opponent_pet.hp = max(0, opponent_pet.hp - damage)
+                    battle_log += f"{pet.name}攻击{opponent_pet.name}，造成{damage}点伤害！\n"
+                
+                # 添加分隔线
+                battle_log += "-"*20 + "\n"
+            
+            # 更新对战时间
+            pet.update_battle_time()
+            
+            # 战斗结果
+            if pet.is_alive():
+                # 玩家获胜
+                exp_gain = opponent_pet.level * 15
+                pet.exp += exp_gain
+                
+                # 检查是否升级
+                level_up = False
+                if pet.exp >= pet.level * 100:
+                    pet.level_up()
+                    level_up = True
+                
+                battle_log += f"\n战斗胜利！{pet.name}获得了{exp_gain}点经验值！"
+                if level_up:
+                    battle_log += f"\n{pet.name}升级了！"
+            else:
+                # 玩家失败
+                battle_log += f"\n战斗失败！{pet.name}被击败了！"
+                
+            # 更新数据库
+            self.db.update_pet_data(
+                user_id,
+                level=pet.level,
+                exp=pet.exp,
+                hp=pet.hp,
+                attack=pet.attack,
+                defense=pet.defense,
+                speed=pet.speed,
+                skills=pet.skills,
+                last_battle_time=pet.last_battle_time.isoformat()
+            )
+            
+            self.db.update_pet_data(
+                opponent_id,
+                hp=opponent_pet.hp
+            )
+            
+            # 生成对战结果图片
+            image_path = await self.img_gen.create_pet_image(battle_log)
+            if image_path:
+                yield event.image_result(image_path)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+            else:
+                yield event.plain_result(battle_log)
+            
+        except Exception as e:
+            logger.error(f"宠物对决失败: {str(e)}")
+            yield event.plain_result("宠物对决失败了~请联系管理员检查日志")
+
+    @filter.command("宠物菜单")
+    async def pet_menu(self, event: AstrMessageEvent):
+        """显示宠物帮助菜单"""
+        try:
+            menu = """宠物系统帮助菜单
+
+/领养宠物 [名称] - 领养一只宠物，可指定名称
+/我的宠物 - 查看宠物状态卡
+/训练宠物 - 训练宠物获得经验
+/宠物进化 - 当宠物达到指定等级后进化
+/宠物对战 - 与野生宠物对战
+/对决 @某人 - 与其他玩家进行PVP对战（每30分钟冷却）
+/治疗宠物 - 治疗受伤的宠物
+/宠物菜单 - 显示此帮助菜单
+
+属性克制关系:
+金克木 | 木克土 | 土克水 | 水克火 | 火克金
+克制目标伤害增幅20%"""
+            
+            image_path = await self.img_gen.create_pet_image(menu)
+            if image_path:
+                yield event.image_result(image_path)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+            else:
+                yield event.plain_result(menu)
+            
+        except Exception as e:
+            logger.error(f"显示宠物菜单失败: {str(e)}")
+            yield event.plain_result("显示宠物菜单失败了~请联系管理员检查日志")
     
     @filter.command("查看宠物")
     async def view_pet(self, event: AstrMessageEvent):
