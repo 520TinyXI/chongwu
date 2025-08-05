@@ -424,7 +424,7 @@ class QQPetPlugin(Star):
                 self.pets[user_id] = Pet.from_dict(pet_data)
     
     @filter.command("领养宠物")
-    async def adopt_pet(self, event: AstrMessageEvent):
+    async def adopt_pet(self, event: AstrMessageEvent, context: Context):
         """领养宠物"""
         try:
             user_id = event.get_sender_id()
@@ -458,9 +458,9 @@ class QQPetPlugin(Star):
                     random_pet = random.choice(pet_options)
                     pet = Pet(pet_name, random_pet["type"])
             else:
-                # 随机发放宠物
-                random_pet = random.choice(pet_options)
-                pet = Pet(random_pet["name"], random_pet["type"])
+                # 如果没有提供名称，提示正确的指令格式
+                yield event.plain_result("正确的领养指令：/领养宠物 【名字】")
+                return
             
             self.pets[user_id] = pet
             
@@ -492,7 +492,7 @@ class QQPetPlugin(Star):
             yield event.plain_result("领养宠物失败了~请联系管理员检查日志")
 
     @filter.command("宠物进化")
-    async def evolve_pet(self, event: AstrMessageEvent):
+    async def evolve_pet(self, event: AstrMessageEvent, context: Context):
         """宠物进化"""
         try:
             user_id = event.get_sender_id()
@@ -540,7 +540,7 @@ class QQPetPlugin(Star):
             yield event.plain_result("宠物进化失败了~请联系管理员检查日志")
 
     @filter.command("我的宠物")
-    async def my_pet(self, event: AstrMessageEvent):
+    async def my_pet(self, event: AstrMessageEvent, context: Context):
         """生成宠物状态卡"""
         try:
             user_id = event.get_sender_id()
@@ -573,7 +573,7 @@ class QQPetPlugin(Star):
             yield event.plain_result("生成状态卡失败了~请联系管理员检查日志")
 
     @filter.command("对决")
-    async def duel_pet(self, event: AstrMessageEvent):
+    async def duel_pet(self, event: AstrMessageEvent, context: Context):
         """与其他玩家进行PVP对战"""
         try:
             user_id = event.get_sender_id()
@@ -730,6 +730,7 @@ class QQPetPlugin(Star):
 /宠物对战 - 与野生宠物对战
 /对决 @某人 - 与其他玩家进行PVP对战（每30分钟冷却）
 /治疗宠物 - 治疗受伤的宠物
+/宠物大全 - 显示游戏内所有宠物
 /宠物菜单 - 显示此帮助菜单
 
 属性克制关系:
@@ -977,4 +978,41 @@ class QQPetPlugin(Star):
         except Exception as e:
             logger.error(f"治疗宠物失败: {str(e)}")
             yield event.plain_result("治疗宠物失败了~请联系管理员检查日志")
+    
+    @filter.command("宠物大全")
+    async def pet_catalog(self, event: AstrMessageEvent, context: Context):
+        """显示所有预设宠物"""
+        try:
+            # 预设宠物名称和类型
+            pet_options = [
+                {"name": "烈焰", "type": "火"},
+                {"name": "碧波兽", "type": "水"},
+                {"name": "莲莲草", "type": "草"},
+                {"name": "碎裂岩", "type": "土"},
+                {"name": "金刚", "type": "金"}
+            ]
+            
+            # 生成宠物列表
+            pet_list = "\n".join([f"【{pet['name']}】 {pet['type']}" for pet in pet_options])
+            result = f"游戏内所有宠物:\n{pet_list}"
+            
+            # 尝试生成图片
+            try:
+                image_path = await self.img_gen.create_pet_image(result)
+                if image_path:
+                    yield event.image_result(image_path)
+                    # 延迟删除临时文件，避免文件被占用
+                    import asyncio
+                    await asyncio.sleep(1)
+                    if os.path.exists(image_path):
+                        os.remove(image_path)
+                else:
+                    yield event.plain_result(result)
+            except Exception as e:
+                logger.error(f"生成图片失败: {str(e)}")
+                yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"显示宠物大全失败: {str(e)}")
+            yield event.plain_result("显示宠物大全失败了~请联系管理员检查日志")
 
