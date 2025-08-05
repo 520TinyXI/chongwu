@@ -22,6 +22,9 @@ class PetImageGenerator:
     def __init__(self, plugin_dir: str):
         self.bg_image = os.path.join(plugin_dir, "assets", "background.png")
         self.font_path = os.path.join(plugin_dir, "assets", "font.ttf")
+        self.output_dir = os.path.join(plugin_dir, "temp")
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
 
     async def create_pet_image(self, text: str, pet_type: str = None, font_size: int = 36) -> Union[str, None]:
         """生成宠物信息图片"""
@@ -63,7 +66,7 @@ class PetImageGenerator:
                         print(f"加载宠物图片失败: {e}")
 
             # 绘制标题(居中)
-            title = "宠物信息"
+            title = "宠物信息卡"
             draw.text((W / 2, 50), title, font=font_title, fill=(0, 0, 0), anchor="mt")
 
             # 绘制文本信息(右侧)
@@ -76,9 +79,10 @@ class PetImageGenerator:
                 draw.text((400, y_offset), line, font=font_text, fill=(0, 0, 0))
                 y_offset += line_spacing
 
-            temp_path = os.path.join(os.path.dirname(self.bg_image), "temp_pet.png")
-            bg.save(temp_path)
-            return temp_path
+            output_path = os.path.join(self.output_dir, f"pet_{int(datetime.now().timestamp())}.png")
+            bg.save(output_path)
+            print(f"图片已保存到: {output_path}")
+            return output_path
         except Exception as e:
             print(f"生成图片失败: {e}")
             return None
@@ -177,11 +181,11 @@ class QQPetPlugin(Star):
             self.db.update_pet_data(user_id, **pet.to_dict())
             
             # 生成结果信息
-            result = f"成功领养宠物！\n名称: {pet.name}\n类型: {pet.type}\n属性: HP={pet.hp}, 攻击={pet.attack}, 防御={pet.defense}, 速度={pet.speed}"
+            result = f"成功领养宠物！！！\n名称：{pet.name}\n属性：{pet.type}\n等级：{pet.level}\n经验值：{pet.exp}/{pet.level * 100}\n数值：\nHP={pet.hp},攻击={pet.attack}\n防御={pet.defense},速度={pet.speed}\n技能：无"
             
             # 尝试生成图片
             try:
-                image_path = await self.img_gen.create_pet_image(result, pet.name)
+                image_path = await self.img_gen.create_pet_image(result, pet.type)
                 if image_path:
                     yield event.image_result(image_path)
                     # 延迟删除临时文件，避免文件被占用
@@ -235,7 +239,7 @@ class QQPetPlugin(Star):
             )
             
             # 生成进化结果图片
-            image_path = await self.img_gen.create_pet_image(result, pet.name)
+            image_path = await self.img_gen.create_pet_image(result, pet.type)
             if image_path:
                 yield event.image_result(image_path)
                 if os.path.exists(image_path):
@@ -268,7 +272,7 @@ class QQPetPlugin(Star):
             
             # 生成状态卡图片
             result = str(pet)
-            image_path = await self.img_gen.create_pet_image(result, pet.name)
+            image_path = await self.img_gen.create_pet_image(result, pet.type)
             if image_path:
                 yield event.image_result(image_path)
                 if os.path.exists(image_path):
@@ -412,7 +416,7 @@ class QQPetPlugin(Star):
             )
             
             # 生成对战结果图片
-            image_path = await self.img_gen.create_pet_image(battle_log, pet.name)
+            image_path = await self.img_gen.create_pet_image(battle_log, pet.type)
             if image_path:
                 yield event.image_result(image_path)
                 if os.path.exists(image_path):
@@ -477,7 +481,7 @@ class QQPetPlugin(Star):
             
             # 生成结果图片
             result = str(pet)
-            image_path = await self.img_gen.create_pet_image(result, pet.name)
+            image_path = await self.img_gen.create_pet_image(result, pet.type)
             if image_path:
                 yield event.image_result(image_path)
                 if os.path.exists(image_path):
@@ -638,7 +642,7 @@ class QQPetPlugin(Star):
                 )
             
             # 生成对战结果图片
-            image_path = await self.img_gen.create_pet_image(battle_log, pet.name)
+            image_path = await self.img_gen.create_pet_image(battle_log, pet.type)
             if image_path:
                 yield event.image_result(image_path)
                 if os.path.exists(image_path):
@@ -674,7 +678,7 @@ class QQPetPlugin(Star):
                 mood=pet.mood
             )
             
-            image_path = await self.img_gen.create_pet_image(result, pet.name)
+            image_path = await self.img_gen.create_pet_image(result, pet.type)
             if image_path:
                 yield event.image_result(image_path)
                 if os.path.exists(image_path):

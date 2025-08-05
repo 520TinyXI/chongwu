@@ -261,16 +261,15 @@ class Pet:
 
     def __str__(self) -> str:
         """字符串表示"""
-        return (
-            f"名称：{self.name}\n"
-            f"属性：{self.type}\n"
-            f"等级：{self.level}\n"
-            f"经验值：{self.exp}/{self.level * 100}\n"
-            f"数值：\n"
-            f"HP={self.hp},攻击={self.attack}\n"
-            f"防御={self.defense},速度={self.speed}\n"
-            f"技能：{', '.join(self.skills) if self.skills else '无'}"
-        )
+        skills_str = "、".join(self.skills) if self.skills else "无"
+        return f"""名称：{self.name}
+属性：{self.type}
+等级：{self.level}
+经验值：{self.exp}/{self.level * 100}
+数值：
+HP={self.hp},攻击={self.attack}
+防御={self.defense},速度={self.speed}
+技能：{skills_str}"""
 
 # PetDatabase类
 class PetDatabase:
