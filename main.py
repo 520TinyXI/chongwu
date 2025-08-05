@@ -23,7 +23,7 @@ class PetImageGenerator:
         self.bg_image = os.path.join(plugin_dir, "assets", "Basemap.png")
         self.font_path = os.path.join(plugin_dir, "assets", "font.ttf")
 
-    async def create_pet_image(self, text: str, font_size: int = 36) -> Union[str, None]:
+    async def create_pet_image(self, text: str, pet_type: str = None, font_size: int = 36) -> Union[str, None]:
         """生成宠物信息图片"""
         try:
             if not os.path.exists(self.bg_image):
@@ -32,6 +32,20 @@ class PetImageGenerator:
             bg = Image.open(self.bg_image)
             if bg.size != (1640, 856):
                 bg = bg.resize((1640, 856))
+
+            # 如果提供了宠物类型，尝试添加宠物图片
+            if pet_type and pet_type in Pet.TYPE_IMAGES:
+                pet_image_name = Pet.TYPE_IMAGES[pet_type]
+                pet_image_path = os.path.join(os.path.dirname(self.bg_image), f"{pet_image_name}.png")
+                if os.path.exists(pet_image_path):
+                    try:
+                        pet_img = Image.open(pet_image_path)
+                        # 调整宠物图片大小
+                        pet_img = pet_img.resize((200, 200))
+                        # 将宠物图片粘贴到背景图片上
+                        bg.paste(pet_img, (50, 50))  # 在左上角附近粘贴宠物图片
+                    except Exception as e:
+                        print(f"加载宠物图片失败: {e}")
 
             draw = ImageDraw.Draw(bg)
 
@@ -167,7 +181,7 @@ class QQPetPlugin(Star):
             
             # 尝试生成图片
             try:
-                image_path = await self.img_gen.create_pet_image(result)
+                image_path = await self.img_gen.create_pet_image(result, pet.name)
                 if image_path:
                     yield event.image_result(image_path)
                     # 延迟删除临时文件，避免文件被占用
@@ -221,7 +235,7 @@ class QQPetPlugin(Star):
             )
             
             # 生成进化结果图片
-            image_path = await self.img_gen.create_pet_image(result)
+            image_path = await self.img_gen.create_pet_image(result, pet.name)
             if image_path:
                 yield event.image_result(image_path)
                 if os.path.exists(image_path):
@@ -254,7 +268,7 @@ class QQPetPlugin(Star):
             
             # 生成状态卡图片
             result = str(pet)
-            image_path = await self.img_gen.create_pet_image(result)
+            image_path = await self.img_gen.create_pet_image(result, pet.name)
             if image_path:
                 yield event.image_result(image_path)
                 if os.path.exists(image_path):
@@ -398,7 +412,7 @@ class QQPetPlugin(Star):
             )
             
             # 生成对战结果图片
-            image_path = await self.img_gen.create_pet_image(battle_log)
+            image_path = await self.img_gen.create_pet_image(battle_log, pet.name)
             if image_path:
                 yield event.image_result(image_path)
                 if os.path.exists(image_path):
@@ -463,7 +477,7 @@ class QQPetPlugin(Star):
             
             # 生成结果图片
             result = str(pet)
-            image_path = await self.img_gen.create_pet_image(result)
+            image_path = await self.img_gen.create_pet_image(result, pet.name)
             if image_path:
                 yield event.image_result(image_path)
                 if os.path.exists(image_path):
@@ -624,7 +638,7 @@ class QQPetPlugin(Star):
                 )
             
             # 生成对战结果图片
-            image_path = await self.img_gen.create_pet_image(battle_log)
+            image_path = await self.img_gen.create_pet_image(battle_log, pet.name)
             if image_path:
                 yield event.image_result(image_path)
                 if os.path.exists(image_path):
@@ -660,7 +674,7 @@ class QQPetPlugin(Star):
                 mood=pet.mood
             )
             
-            image_path = await self.img_gen.create_pet_image(result)
+            image_path = await self.img_gen.create_pet_image(result, pet.name)
             if image_path:
                 yield event.image_result(image_path)
                 if os.path.exists(image_path):
