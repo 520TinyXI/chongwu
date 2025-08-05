@@ -53,20 +53,9 @@ class PetImageGenerator:
         if not os.path.exists(assets_dir):
             os.makedirs(assets_dir)
         
-        # 创建浅蓝色渐变背景
+        # 创建纯白色背景
         W, H = 800, 600
-        bg = Image.new('RGB', (W, H), (135, 206, 250))  # 浅蓝色
-        
-        # 添加一些装饰性的云朵
-        draw = ImageDraw.Draw(bg)
-        
-        # 绘制云朵
-        for i in range(5):
-            x = 100 + i * 150
-            y = 50 + (i % 2) * 50
-            draw.ellipse((x, y, x + 80, y + 40), fill=(255, 255, 255))
-            draw.ellipse((x + 20, y - 10, x + 100, y + 30), fill=(255, 255, 255))
-            draw.ellipse((x + 40, y, x + 120, y + 40), fill=(255, 255, 255))
+        bg = Image.new('RGB', (W, H), (255, 255, 255))  # 纯白色
         
         # 保存背景图片
         bg.save(self.bg_image)
@@ -95,8 +84,25 @@ class PetImageGenerator:
                 font_text = ImageFont.load_default()
 
             # 如果提供了宠物类型，尝试添加宠物图片
+            # 首先检查pet_type是否直接在TYPE_IMAGES中
+            pet_image_name = None
             if pet_type and pet_type in Pet.TYPE_IMAGES:
                 pet_image_name = Pet.TYPE_IMAGES[pet_type]
+            # 如果没有找到，尝试通过属性克制关系映射
+            elif pet_type and pet_type in Pet.TYPE_ADVANTAGES:
+                # 根据属性类型映射到具体的宠物名称
+                type_to_name = {
+                    "火": "烈焰",
+                    "水": "碧波兽",
+                    "草": "莲莲草",
+                    "土": "碎裂岩",
+                    "金": "金刚"
+                }
+                pet_name = type_to_name.get(pet_type)
+                if pet_name and pet_name in Pet.TYPE_IMAGES:
+                    pet_image_name = Pet.TYPE_IMAGES[pet_name]
+            
+            if pet_image_name:
                 pet_image_path = os.path.join(os.path.dirname(self.bg_image), f"{pet_image_name}.png")
                 if os.path.exists(pet_image_path):
                     try:
