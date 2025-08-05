@@ -105,7 +105,7 @@ class QQPetPlugin(Star):
                 self.pets[user_id] = Pet.from_dict(pet_data)
     
     @filter.command("领养宠物")
-    async def adopt_pet(self, event: AstrMessageEvent):
+    async def adopt_pet(self, event: AstrMessageEvent, pet_name: str = None):
         """领养宠物"""
         try:
             # 处理可能缺失的参数
@@ -132,10 +132,6 @@ class QQPetPlugin(Star):
             if user_id in self.pets or self.db.get_pet_data(user_id):
                 yield event.plain_result("您已经领养了宠物！")
                 return
-            
-            # 获取宠物名称（如果提供了的话）
-            args = event.get_args()
-            pet_name = args[0] if args else None
             
             # 预设宠物名称和类型
             pet_options = [
@@ -271,19 +267,18 @@ class QQPetPlugin(Star):
             yield event.plain_result("生成状态卡失败了~请联系管理员检查日志")
 
     @filter.command("对决")
-    async def duel_pet(self, event: AstrMessageEvent):
+    async def duel_pet(self, event: AstrMessageEvent, opponent_id: str):
         """与其他玩家进行PVP对战"""
         try:
             user_id = event.get_sender_id()
-            args = event.get_args()
             
             # 检查参数
-            if not args or len(args) < 1:
+            if not opponent_id:
                 yield event.plain_result("请使用格式: /对决 @某人")
                 return
             
             # 解析对手ID（这里简化处理，实际可能需要从@提及中提取）
-            opponent_id = args[0].replace("@", "")
+            opponent_id = opponent_id.replace("@", "")
             
             # 检查是否有宠物
             if user_id not in self.pets:
