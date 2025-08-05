@@ -262,14 +262,14 @@ class Pet:
     def __str__(self) -> str:
         """字符串表示"""
         return (
-            f"名称: {self.name}\n"
-            f"类型: {self.type}\n"
-            f"等级: {self.level}\n"
-            f"经验: {self.exp}/{self.level * 100}\n"
-            f"属性: HP={self.hp}, 攻击={self.attack}, 防御={self.defense}, 速度={self.speed}\n"
-            f"状态: 饥饿度={self.hunger}, 心情={self.mood}\n"
-            f"技能: {', '.join(self.skills) if self.skills else '无'}\n"
-            f"可进化: {'是' if self.can_evolve() else '否'}"
+            f"名称：{self.name}\n"
+            f"属性：{self.type}\n"
+            f"等级：{self.level}\n"
+            f"经验值：{self.exp}/{self.level * 100}\n"
+            f"数值：\n"
+            f"HP={self.hp},攻击={self.attack}\n"
+            f"防御={self.defense},速度={self.speed}\n"
+            f"技能：{', '.join(self.skills) if self.skills else '无'}"
         )
 
 # PetDatabase类

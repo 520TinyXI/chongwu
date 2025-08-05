@@ -71,23 +71,10 @@ class PetImageGenerator:
             y_offset = 150
             line_spacing = 40  # 增加行间距
             
-            # 处理属性信息，使其竖向排列
+            # 绘制文本信息(右侧)
             for line in lines:
-                if "属性:" in line and "HP=" in line:
-                    # 分离属性信息
-                    parts = line.split(", ")
-                    base_info = ", ".join(parts[:2])  # 名称和类型
-                    draw.text((400, y_offset), base_info, font=font_text, fill=(0, 0, 0))
-                    y_offset += line_spacing
-                    
-                    # 竖向排列属性值
-                    attributes = parts[2:]  # 属性值部分
-                    for attr in attributes:
-                        draw.text((420, y_offset), attr, font=font_text, fill=(0, 0, 0))
-                        y_offset += line_spacing
-                else:
-                    draw.text((400, y_offset), line, font=font_text, fill=(0, 0, 0))
-                    y_offset += line_spacing
+                draw.text((400, y_offset), line, font=font_text, fill=(0, 0, 0))
+                y_offset += line_spacing
 
             temp_path = os.path.join(os.path.dirname(self.bg_image), "temp_pet.png")
             bg.save(temp_path)
