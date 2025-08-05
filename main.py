@@ -29,13 +29,19 @@ class PetImageGenerator:
     async def create_pet_image(self, text: str, pet_type: str = None, font_size: int = 36) -> Union[str, None]:
         """生成宠物信息图片"""
         try:
+            print(f"开始生成图片，pet_type: {pet_type}")
+            
             if not os.path.exists(self.bg_image):
+                print(f"背景图片不存在: {self.bg_image}")
                 return None
+            
+            print(f"背景图片存在: {self.bg_image}")
 
             # 调整背景图片大小为800x600
             W, H = 800, 600
             bg = Image.open(self.bg_image)
             bg = bg.resize((W, H))
+            print("背景图片加载并调整大小成功")
 
             draw = ImageDraw.Draw(bg)
 
@@ -44,17 +50,23 @@ class PetImageGenerator:
                 if os.path.exists(self.font_path):
                     font_title = ImageFont.truetype(self.font_path, 40)
                     font_text = ImageFont.truetype(self.font_path, 28)
+                    print(f"字体文件存在: {self.font_path}")
                 else:
                     font_title = ImageFont.load_default()
                     font_text = ImageFont.load_default()
-            except Exception:
+                    print(f"字体文件不存在: {self.font_path}")
+            except Exception as e:
                 font_title = ImageFont.load_default()
                 font_text = ImageFont.load_default()
+                print(f"加载字体失败: {e}")
 
             # 如果提供了宠物类型，尝试添加宠物图片
+            print(f"Pet.TYPE_IMAGES: {Pet.TYPE_IMAGES}")
             if pet_type and pet_type in Pet.TYPE_IMAGES:
                 pet_image_name = Pet.TYPE_IMAGES[pet_type]
                 pet_image_path = os.path.join(os.path.dirname(self.bg_image), f"{pet_image_name}.png")
+                print(f"宠物图片路径: {pet_image_path}")
+                
                 if os.path.exists(pet_image_path):
                     try:
                         pet_img = Image.open(pet_image_path).convert("RGBA")
@@ -62,12 +74,18 @@ class PetImageGenerator:
                         pet_img = pet_img.resize((300, 300))
                         # 将宠物图片粘贴到背景图片上(左侧)
                         bg.paste(pet_img, (50, 150), pet_img)
+                        print("宠物图片加载并粘贴成功")
                     except Exception as e:
                         print(f"加载宠物图片失败: {e}")
+                else:
+                    print(f"宠物图片文件不存在: {pet_image_path}")
+            else:
+                print(f"宠物类型 {pet_type} 不在Pet.TYPE_IMAGES中或未提供")
 
             # 绘制标题(居中)
             title = "宠物信息卡"
             draw.text((W / 2, 50), title, font=font_title, fill=(0, 0, 0), anchor="mt")
+            print("标题绘制成功")
 
             # 绘制文本信息(右侧)
             lines = text.split('\n')
@@ -78,6 +96,7 @@ class PetImageGenerator:
             for line in lines:
                 draw.text((400, y_offset), line, font=font_text, fill=(0, 0, 0))
                 y_offset += line_spacing
+            print("文本信息绘制成功")
 
             output_path = os.path.join(self.output_dir, f"pet_{int(datetime.now().timestamp())}.png")
             bg.save(output_path)
@@ -85,6 +104,8 @@ class PetImageGenerator:
             return output_path
         except Exception as e:
             print(f"生成图片失败: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
 logger = logging.getLogger(__name__)
@@ -185,18 +206,26 @@ class QQPetPlugin(Star):
             
             # 尝试生成图片
             try:
+                logger.info(f"开始生成宠物图片，宠物类型: {pet.type}")
                 image_path = await self.img_gen.create_pet_image(result, pet.type)
+                logger.info(f"图片生成结果: {image_path}")
+                
                 if image_path:
+                    logger.info(f"检查生成的图片文件是否存在: {os.path.exists(image_path)}")
                     yield event.image_result(image_path)
+                    logger.info(f"已通过event.image_result返回图片: {image_path}")
+                    
                     # 延迟删除临时文件，避免文件被占用
                     import asyncio
                     await asyncio.sleep(1)
                     if os.path.exists(image_path):
                         os.remove(image_path)
+                        logger.info(f"已删除临时图片文件: {image_path}")
                 else:
+                    logger.info("图片生成失败，返回纯文本结果")
                     yield event.plain_result(result)
             except Exception as e:
-                logger.error(f"生成图片失败: {str(e)}")
+                logger.error(f"生成图片失败: {str(e)}", exc_info=True)
                 yield event.plain_result(result)
             
         except Exception as e:
@@ -239,12 +268,20 @@ class QQPetPlugin(Star):
             )
             
             # 生成进化结果图片
+            logger.info(f"开始生成进化结果图片，宠物类型: {pet.type}")
             image_path = await self.img_gen.create_pet_image(result, pet.type)
+            logger.info(f"进化结果图片生成结果: {image_path}")
+            
             if image_path:
+                logger.info(f"检查生成的进化结果图片文件是否存在: {os.path.exists(image_path)}")
                 yield event.image_result(image_path)
+                logger.info(f"已通过event.image_result返回进化结果图片: {image_path}")
+                
                 if os.path.exists(image_path):
                     os.remove(image_path)
+                    logger.info(f"已删除临时进化结果图片文件: {image_path}")
             else:
+                logger.info("进化结果图片生成失败，返回纯文本结果")
                 yield event.plain_result(result)
             
         except Exception as e:
@@ -272,12 +309,20 @@ class QQPetPlugin(Star):
             
             # 生成状态卡图片
             result = str(pet)
+            logger.info(f"开始生成状态卡图片，宠物类型: {pet.type}")
             image_path = await self.img_gen.create_pet_image(result, pet.type)
+            logger.info(f"状态卡图片生成结果: {image_path}")
+            
             if image_path:
+                logger.info(f"检查生成的状态卡图片文件是否存在: {os.path.exists(image_path)}")
                 yield event.image_result(image_path)
+                logger.info(f"已通过event.image_result返回状态卡图片: {image_path}")
+                
                 if os.path.exists(image_path):
                     os.remove(image_path)
+                    logger.info(f"已删除临时状态卡图片文件: {image_path}")
             else:
+                logger.info("状态卡图片生成失败，返回纯文本结果")
                 yield event.plain_result(result)
             
         except Exception as e:
@@ -416,12 +461,20 @@ class QQPetPlugin(Star):
             )
             
             # 生成对战结果图片
+            logger.info(f"开始生成对战结果图片，宠物类型: {pet.type}")
             image_path = await self.img_gen.create_pet_image(battle_log, pet.type)
+            logger.info(f"对战结果图片生成结果: {image_path}")
+            
             if image_path:
+                logger.info(f"检查生成的对战结果图片文件是否存在: {os.path.exists(image_path)}")
                 yield event.image_result(image_path)
+                logger.info(f"已通过event.image_result返回对战结果图片: {image_path}")
+                
                 if os.path.exists(image_path):
                     os.remove(image_path)
+                    logger.info(f"已删除临时对战结果图片文件: {image_path}")
             else:
+                logger.info("对战结果图片生成失败，返回纯文本结果")
                 yield event.plain_result(battle_log)
             
         except Exception as e:
@@ -448,12 +501,21 @@ class QQPetPlugin(Star):
 金克木 | 木克土 | 土克水 | 水克火 | 火克金
 克制目标伤害增幅20%"""
             
+            # 生成菜单图片
+            logger.info("开始生成菜单图片")
             image_path = await self.img_gen.create_pet_image(menu)
+            logger.info(f"菜单图片生成结果: {image_path}")
+            
             if image_path:
+                logger.info(f"检查生成的菜单图片文件是否存在: {os.path.exists(image_path)}")
                 yield event.image_result(image_path)
+                logger.info(f"已通过event.image_result返回菜单图片: {image_path}")
+                
                 if os.path.exists(image_path):
                     os.remove(image_path)
+                    logger.info(f"已删除临时菜单图片文件: {image_path}")
             else:
+                logger.info("菜单图片生成失败，返回纯文本结果")
                 yield event.plain_result(menu)
             
         except Exception as e:
@@ -481,12 +543,20 @@ class QQPetPlugin(Star):
             
             # 生成结果图片
             result = str(pet)
+            logger.info(f"开始生成查看宠物结果图片，宠物类型: {pet.type}")
             image_path = await self.img_gen.create_pet_image(result, pet.type)
+            logger.info(f"查看宠物结果图片生成结果: {image_path}")
+            
             if image_path:
+                logger.info(f"检查生成的查看宠物结果图片文件是否存在: {os.path.exists(image_path)}")
                 yield event.image_result(image_path)
+                logger.info(f"已通过event.image_result返回查看宠物结果图片: {image_path}")
+                
                 if os.path.exists(image_path):
                     os.remove(image_path)
+                    logger.info(f"已删除临时查看宠物结果图片文件: {image_path}")
             else:
+                logger.info("查看宠物结果图片生成失败，返回纯文本结果")
                 yield event.plain_result(result)
             
         except Exception as e:
