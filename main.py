@@ -15,7 +15,7 @@ import sqlite3
 from PIL import Image, ImageDraw, ImageFont
 from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
-from pet import Pet, PetDatabase
+from .pet import Pet, PetDatabase
 
 # PetImageGenerator类
 class PetImageGenerator:
