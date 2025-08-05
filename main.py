@@ -152,8 +152,8 @@ class PetDatabase:
 # PetImageGenerator类
 class PetImageGenerator:
     def __init__(self, plugin_dir: str):
-        self.bg_image = os.path.join(plugin_dir, "Basemap.png")
-        self.font_path = os.path.join(plugin_dir, "LXGWWenKai-Medium.ttf")
+        self.bg_image = os.path.join(plugin_dir, "assets", "Basemap.png")
+        self.font_path = os.path.join(plugin_dir, "assets", "font.ttf")
 
     async def create_pet_image(self, text: str, font_size: int = 36) -> Union[str, None]:
         """生成宠物信息图片"""
