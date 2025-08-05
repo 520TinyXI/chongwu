@@ -23,8 +23,7 @@ class PetDatabase:
         if not os.path.exists(db_dir):
             os.makedirs(db_dir)
         self.db_path = os.path.join(db_dir, "astrbot_plugin_qq_pet.db")
-        self.init_db()  # 确保调用初始化方法
-        self.init_db()
+        self.init_db()  # 只调用一次初始化方法
         
     def init_db(self):
         """初始化数据库连接和表结构"""
@@ -469,14 +468,23 @@ class QQPetPlugin(Star):
             self.db.create_pet(user_id, pet.name, pet.type)
             self.db.update_pet_data(user_id, **pet.to_dict())
             
-            # 生成结果图片
+            # 生成结果信息
             result = f"成功领养宠物！\n名称: {pet.name}\n类型: {pet.type}\n属性: HP={pet.hp}, 攻击={pet.attack}, 防御={pet.defense}, 速度={pet.speed}"
-            image_path = await self.img_gen.create_pet_image(result)
-            if image_path:
-                yield event.image_result(image_path)
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-            else:
+            
+            # 尝试生成图片
+            try:
+                image_path = await self.img_gen.create_pet_image(result)
+                if image_path:
+                    yield event.image_result(image_path)
+                    # 延迟删除临时文件，避免文件被占用
+                    import asyncio
+                    await asyncio.sleep(1)
+                    if os.path.exists(image_path):
+                        os.remove(image_path)
+                else:
+                    yield event.plain_result(result)
+            except Exception as e:
+                logger.error(f"生成图片失败: {str(e)}")
                 yield event.plain_result(result)
             
         except Exception as e:
