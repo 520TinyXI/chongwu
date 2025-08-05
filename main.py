@@ -74,12 +74,7 @@ logger = logging.getLogger(__name__)
 
 @register("宠物", "Tinyxi", "一个QQ宠物插件，包含创建宠物、喂养、训练、对战等功能", "1.0.0", "https://github.com/520TinyXI/chongwu.git")
 class QQPetPlugin(Star):
-    def __init__(self, context: Context = None, config: dict = None, db = None):
-        # 适配不同的初始化参数
-        if context is None:
-            # 如果没有提供context，创建一个简单的模拟对象
-            # 使用真实的Context类而不是MockContext
-            context = Context(config=config, db=db)
+    def __init__(self, context: Context):
         super().__init__(context)
         plugin_dir = os.path.dirname(__file__)
         
@@ -110,7 +105,7 @@ class QQPetPlugin(Star):
                 self.pets[user_id] = Pet.from_dict(pet_data)
     
     @filter.command("领养宠物")
-    async def adopt_pet(self, event: AstrMessageEvent, context: Context):
+    async def adopt_pet(self, event: AstrMessageEvent):
         """领养宠物"""
         try:
             # 处理可能缺失的参数
@@ -195,7 +190,7 @@ class QQPetPlugin(Star):
             yield event.plain_result(f"领养宠物失败了~错误原因: {str(e)}")
 
     @filter.command("宠物进化")
-    async def evolve_pet(self, event: AstrMessageEvent, context: Context):
+    async def evolve_pet(self, event: AstrMessageEvent):
         """宠物进化"""
         try:
             user_id = event.get_sender_id()
@@ -243,7 +238,7 @@ class QQPetPlugin(Star):
             yield event.plain_result("宠物进化失败了~请联系管理员检查日志")
 
     @filter.command("我的宠物")
-    async def my_pet(self, event: AstrMessageEvent, context: Context):
+    async def my_pet(self, event: AstrMessageEvent):
         """生成宠物状态卡"""
         try:
             user_id = event.get_sender_id()
@@ -276,7 +271,7 @@ class QQPetPlugin(Star):
             yield event.plain_result("生成状态卡失败了~请联系管理员检查日志")
 
     @filter.command("对决")
-    async def duel_pet(self, event: AstrMessageEvent, context: Context):
+    async def duel_pet(self, event: AstrMessageEvent):
         """与其他玩家进行PVP对战"""
         try:
             user_id = event.get_sender_id()
@@ -421,7 +416,7 @@ class QQPetPlugin(Star):
             yield event.plain_result("宠物对决失败了~请联系管理员检查日志")
 
     @filter.command("宠物菜单")
-    async def pet_menu(self, event: AstrMessageEvent, context: Context):
+    async def pet_menu(self, event: AstrMessageEvent):
         """显示宠物帮助菜单"""
         try:
             menu = """宠物系统帮助菜单
@@ -453,7 +448,7 @@ class QQPetPlugin(Star):
             yield event.plain_result("显示宠物菜单失败了~请联系管理员检查日志")
     
     @filter.command("查看宠物")
-    async def view_pet(self, event: AstrMessageEvent, context: Context):
+    async def view_pet(self, event: AstrMessageEvent):
         """查看宠物信息"""
         try:
             user_id = event.get_sender_id()
@@ -486,7 +481,7 @@ class QQPetPlugin(Star):
             yield event.plain_result("查看宠物失败了~请联系管理员检查日志")
     
     @filter.command("训练宠物")
-    async def train_pet(self, event: AstrMessageEvent, context: Context):
+    async def train_pet(self, event: AstrMessageEvent):
         """训练宠物"""
         try:
             user_id = event.get_sender_id()
@@ -522,7 +517,7 @@ class QQPetPlugin(Star):
             yield event.plain_result("训练宠物失败了~请联系管理员检查日志")
     
     @filter.command("宠物对战")
-    async def battle_pet(self, event: AstrMessageEvent, context: Context):
+    async def battle_pet(self, event: AstrMessageEvent):
         """宠物对战"""
 
         try:
@@ -647,7 +642,7 @@ class QQPetPlugin(Star):
             yield event.plain_result("宠物对战失败了~请联系管理员检查日志")
     
     @filter.command("治疗宠物")
-    async def heal_pet(self, event: AstrMessageEvent, context: Context):
+    async def heal_pet(self, event: AstrMessageEvent):
         """治疗宠物"""
         try:
             user_id = event.get_sender_id()
@@ -683,7 +678,7 @@ class QQPetPlugin(Star):
             yield event.plain_result("治疗宠物失败了~请联系管理员检查日志")
     
     @filter.command("宠物大全")
-    async def pet_catalog(self, event: AstrMessageEvent, context: Context):
+    async def pet_catalog(self, event: AstrMessageEvent):
         """显示所有预设宠物"""
         try:
             # 预设宠物名称和类型
