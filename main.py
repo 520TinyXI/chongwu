@@ -23,6 +23,7 @@ class PetDatabase:
         if not os.path.exists(db_dir):
             os.makedirs(db_dir)
         self.db_path = os.path.join(db_dir, "astrbot_plugin_qq_pet.db")
+        self.init_db()  # 确保调用初始化方法
         self.init_db()
         
     def init_db(self):
@@ -123,31 +124,38 @@ class PetDatabase:
         
     def save_pet_data(self, user_id: str, pet_data: Dict[str, Any]):
         """保存宠物数据（用于创建宠物）"""
-        # 检查是否已有宠物
-        if self.get_pet_data(user_id):
+        try:
+            self.conn.execute("BEGIN")
+            # 检查是否已有宠物
+            if self.get_pet_data(user_id):
+                self.conn.rollback()
+                return False
+            
+            self.cursor.execute('''
+                INSERT INTO pet_data 
+                (user_id, pet_name, pet_type, level, exp, hp, attack, defense, speed, hunger, mood, skills)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                user_id,
+                pet_data['pet_name'],
+                pet_data['pet_type'],
+                pet_data.get('level', 1),
+                pet_data.get('exp', 0),
+                pet_data.get('hp', 100),
+                pet_data.get('attack', 10),
+                pet_data.get('defense', 5),
+                pet_data.get('speed', 10),
+                pet_data.get('hunger', 50),
+                pet_data.get('mood', 50),
+                json.dumps(pet_data.get('skills', []))
+            ))
+            
+            self.conn.commit()
+            return True
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"保存宠物数据失败: {str(e)}")
             return False
-        
-        self.cursor.execute('''
-            INSERT INTO pet_data 
-            (user_id, pet_name, pet_type, level, exp, hp, attack, defense, speed, hunger, mood, skills)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            user_id,
-            pet_data['pet_name'],
-            pet_data['pet_type'],
-            pet_data.get('level', 1),
-            pet_data.get('exp', 0),
-            pet_data.get('hp', 100),
-            pet_data.get('attack', 10),
-            pet_data.get('defense', 5),
-            pet_data.get('speed', 10),
-            pet_data.get('hunger', 50),
-            pet_data.get('mood', 50),
-            json.dumps(pet_data.get('skills', []))
-        ))
-        
-        self.conn.commit()
-        return True
 
 # PetImageGenerator类
 class PetImageGenerator:
@@ -388,8 +396,16 @@ logger = logging.getLogger(__name__)
 class QQPetPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
-        self.db = PetDatabase(os.path.dirname(__file__))
-        self.img_gen = PetImageGenerator(os.path.dirname(__file__))
+        plugin_dir = os.path.dirname(__file__)
+        
+        # 确保资源目录存在
+        assets_dir = os.path.join(plugin_dir, "assets")
+        if not os.path.exists(assets_dir):
+            os.makedirs(assets_dir)
+            logger.warning(f"创建资源目录: {assets_dir}")
+        
+        self.db = PetDatabase(plugin_dir)
+        self.img_gen = PetImageGenerator(plugin_dir)
         self.pets: Dict[str, Pet] = {}
         
         # 初始化已有的宠物
@@ -413,9 +429,10 @@ class QQPetPlugin(Star):
         """创建宠物"""
         try:
             user_id = event.get_sender_id()
+            logger.info(f"用户 {user_id} 请求创建宠物")
             
-            # 检查是否已创建宠物
-            if user_id in self.pets:
+            # 双重检查是否已创建宠物
+            if user_id in self.pets or self.db.get_pet_data(user_id):
                 yield event.plain_result("您已经创建了宠物！")
                 return
             
