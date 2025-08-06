@@ -11,7 +11,7 @@ class Pet:
     EVOLUTION_DATA = {
         "烈焰": {"evolve_to": "炽焰龙", "required_level": 10, "type": "火"},
         "碧波兽": {"evolve_to": "瀚海蛟", "required_level": 10, "type": "水"},
-        "莲莲草": {"evolve_to": "百草王", "required_level": 10, "type": "草"},
+        "藤甲虫": {"evolve_to": "赤镰战甲", "required_level": 10, "type": "草"},
         "碎裂岩": {"evolve_to": "岩脊守护者", "required_level": 10, "type": "土"},
         "金刚": {"evolve_to": "破甲战犀", "required_level": 10, "type": "金"}
     }
@@ -29,24 +29,37 @@ class Pet:
     TYPE_IMAGES = {
         "烈焰": "FirePup_1",
         "碧波兽": "WaterSprite_1",
-        "莲莲草": "LeafyCat_1",
+        "藤甲虫": "LeafyCat_1",
         "碎裂岩": "cataclastic_rock_1",
         "金刚": "King_Kong_1",
         "炽焰龙": "FirePup_2",
         "瀚海蛟": "WaterSprite_2",
-        "百草王": "LeafyCat_2",
+        "赤镰战甲": "LeafyCat_2",
         "岩脊守护者": "cataclastic_rock_2",
         "破甲战犀": "King_Kong_2"
     }
-    def __init__(self, name: str, pet_type: str):
+    def __init__(self, name: str, pet_type: str, owner: str = "未知"):
         self.name = name
         self.type = pet_type
+        self.owner = owner
         self.level = 1
         self.exp = 0
-        self.hp = 100
-        self.attack = 10
-        self.defense = 5
-        self.speed = 10
+        
+        # 根据宠物类型设置基础属性
+        base_stats = {
+            "火": {"hp": 40, "attack": 16, "defense": 5, "speed": 13},
+            "水": {"hp": 50, "attack": 10, "defense": 8, "speed": 10},
+            "草": {"hp": 60, "attack": 8, "defense": 12, "speed": 8},
+            "土": {"hp": 70, "attack": 7, "defense": 10, "speed": 6},
+            "金": {"hp": 45, "attack": 14, "defense": 6, "speed": 14}
+        }
+        
+        stats = base_stats.get(pet_type, {"hp": 40, "attack": 10, "defense": 5, "speed": 10})
+        self.hp = stats["hp"]
+        self.attack = stats["attack"]
+        self.defense = stats["defense"]
+        self.speed = stats["speed"]
+        
         self.hunger = 50  # 饥饿度 (0-100)
         self.mood = 50    # 心情 (0-100)
         self.coins = 0    # 金币
@@ -58,7 +71,7 @@ class Pet:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]):
         """从字典创建Pet实例"""
-        pet = cls(data['pet_name'], data['pet_type'])
+        pet = cls(data['pet_name'], data['pet_type'], data.get('owner', '未知'))
         pet.level = data.get('level', 1)
         pet.exp = data.get('exp', 0)
         pet.hp = data.get('hp', 100)
@@ -83,6 +96,7 @@ class Pet:
         return {
             'pet_name': self.name,
             'pet_type': self.type,
+            'owner': self.owner,
             'level': self.level,
             'exp': self.exp,
             'hp': self.hp,
@@ -135,10 +149,7 @@ class Pet:
             level_up = True
             
         # 更新属性
-        self.hp = 80 + self.level * 20
-        self.attack = 8 + self.level * 5
-        self.defense = 3 + self.level * 3
-        self.speed = 8 + self.level * 2
+        self.update_stats()
         
         result = f"{self.name}训练成功，获得了{exp_gain}点经验值！"
         if level_up:
@@ -152,42 +163,94 @@ class Pet:
             self.exp -= self.level * 100
             self.level += 1
 
-            # 随机提升一项属性
-            stat_boost = random.choice(['hp', 'attack', 'defense', 'speed'])
-            if stat_boost == 'hp':
-                self.hp += 20
-            elif stat_boost == 'attack':
-                self.attack += 5
-            elif stat_boost == 'defense':
-                self.defense += 3
-            elif stat_boost == 'speed':
-                self.speed += 2
-
             # 升级时学习新技能
             if self.level % 5 == 0:
                 new_skill = self.learn_new_skill()
                 if new_skill:
                     self.skills.append(new_skill)
+                    
+    def update_stats(self):
+        """更新宠物属性"""
+        # 根据宠物类型和等级计算属性
+        type_growth = {
+            "火": {"hp": 15, "attack": 3.8, "defense": 1.5, "speed": 3.0},
+            "水": {"hp": 16, "attack": 3.0, "defense": 2.0, "speed": 2.5},
+            "草": {"hp": 18, "attack": 2.5, "defense": 3.0, "speed": 2.0},
+            "土": {"hp": 20, "attack": 2.2, "defense": 2.5, "speed": 1.8},
+            "金": {"hp": 16, "attack": 3.5, "defense": 1.8, "speed": 3.2}
+        }
+        
+        # 进化形态属性
+        evolved_growth = {
+            "火": {"hp": 19, "attack": 4.8, "defense": 1.9, "speed": 3.8},
+            "水": {"hp": 20, "attack": 3.8, "defense": 2.5, "speed": 3.1},
+            "草": {"hp": 23, "attack": 3.1, "defense": 3.8, "speed": 2.5},
+            "土": {"hp": 25, "attack": 2.8, "defense": 3.1, "speed": 2.3},
+            "金": {"hp": 20, "attack": 4.4, "defense": 2.3, "speed": 4.0}
+        }
+        
+        # 基础形态基础属性
+        base_stats = {
+            "火": {"hp": 40, "attack": 16, "defense": 5, "speed": 13},
+            "水": {"hp": 50, "attack": 10, "defense": 8, "speed": 10},
+            "草": {"hp": 60, "attack": 8, "defense": 12, "speed": 8},
+            "土": {"hp": 70, "attack": 7, "defense": 10, "speed": 6},
+            "金": {"hp": 45, "attack": 14, "defense": 6, "speed": 14}
+        }
+        
+        # 进化形态基础属性（30级）
+        evolved_base = {
+            "火": {"hp": 600, "attack": 158, "defense": 61, "speed": 125},
+            "水": {"hp": 643, "attack": 121, "defense": 83, "speed": 103},
+            "草": {"hp": 728, "attack": 101, "defense": 124, "speed": 83},
+            "土": {"hp": 813, "attack": 89, "defense": 103, "speed": 73},
+            "金": {"hp": 636, "attack": 144, "defense": 73, "speed": 134}
+        }
+        
+        # 判断是否为进化形态
+        is_evolved = self.level >= 30 and self.name in ["炽焰龙", "瀚海蛟", "赤镰战甲", "岩脊守护者", "破甲战犀"]
+        
+        if is_evolved:
+            # 进化形态属性计算
+            growth = evolved_growth.get(self.type, evolved_growth["火"])
+            base = evolved_base.get(self.type, evolved_base["火"])
+            # 30级基础属性 + (当前等级-30) * 每级成长
+            level_diff = self.level - 30
+            self.hp = int(base["hp"] + level_diff * growth["hp"])
+            self.attack = int(base["attack"] + level_diff * growth["attack"])
+            self.defense = int(base["defense"] + level_diff * growth["defense"])
+            self.speed = int(base["speed"] + level_diff * growth["speed"])
+        else:
+            # 基础形态属性计算
+            growth = type_growth.get(self.type, type_growth["火"])
+            base = base_stats.get(self.type, base_stats["火"])
+            # 基础属性 + (当前等级-1) * 每级成长
+            level_diff = self.level - 1
+            self.hp = int(base["hp"] + level_diff * growth["hp"])
+            self.attack = int(base["attack"] + level_diff * growth["attack"])
+            self.defense = int(base["defense"] + level_diff * growth["defense"])
+            self.speed = int(base["speed"] + level_diff * growth["speed"])
                 
     def is_alive(self) -> bool:
         """检查宠物是否存活"""
         return self.hp > 0
         
-    def calculate_damage(self, opponent) -> int:
-        """计算伤害，考虑属性克制"""
-        # 基础伤害计算
-        damage = max(1, self.attack - opponent.defense // 2)
+    def calculate_damage(self, opponent, skill_multiplier: float = 1.0) -> int:
+        """计算伤害，考虑属性克制、技能系数、暴击等"""
+        # 基础伤害计算：伤害 = (攻击力 × 技能系数 - 防御力 × 0.3) × 克制系数 × 暴击系数
+        base_damage = self.attack * skill_multiplier - opponent.defense * 0.3
+        damage = max(1, base_damage)
 
         # 属性相克
         advantage = self.TYPE_ADVANTAGES.get(self.type, {}).get(opponent.type, 1.0)
-        damage = int(damage * advantage)
+        damage = damage * advantage
 
-        # 暴击
-        if random.random() < 0.1:
-            damage *= 2
-            damage = int(damage)
+        # 暴击（5%概率，1.5倍伤害）
+        is_critical = random.random() < 0.05
+        if is_critical:
+            damage = damage * 1.5
 
-        return damage
+        return int(damage)
         
     def heal(self) -> str:
         """治疗宠物"""
@@ -198,8 +261,9 @@ class Pet:
             return f"{self.name}复活了！HP恢复到{self.hp}点。"
         else:
             # 完全恢复
-            hp_restored = 100 + self.level * 20 - self.hp
-            self.hp = 100 + self.level * 20
+            old_hp = self.hp
+            self.update_stats()  # 更新属性以获取当前等级的最大HP
+            hp_restored = self.hp - old_hp
             self.hunger = min(100, self.hunger + 30)
             self.mood = min(100, self.mood + 20)
             return f"{self.name}治疗成功！HP恢复{hp_restored}点，饥饿度和心情也有所改善。"
@@ -242,18 +306,27 @@ class Pet:
         self.name = evolution_info['evolve_to']
         self.type = evolution_info['type']
 
-        # 大幅提升属性
-        self.hp += 50
-        self.attack += 15
-        self.defense += 10
-        self.speed += 10
+        # 重置属性为进化形态的1级属性
+        evolved_base = {
+            "火": {"hp": 600, "attack": 158, "defense": 61, "speed": 125},
+            "水": {"hp": 643, "attack": 121, "defense": 83, "speed": 103},
+            "草": {"hp": 728, "attack": 101, "defense": 124, "speed": 83},
+            "土": {"hp": 813, "attack": 89, "defense": 103, "speed": 73},
+            "金": {"hp": 636, "attack": 144, "defense": 73, "speed": 134}
+        }
+        
+        base = evolved_base.get(self.type, evolved_base["火"])
+        self.hp = base["hp"]
+        self.attack = base["attack"]
+        self.defense = base["defense"]
+        self.speed = base["speed"]
 
         # 学习新技能
         new_skill = self.learn_new_skill()
         if new_skill:
             self.skills.append(new_skill)
 
-        return f"{old_name}进化成了{self.name}！属性大幅提升！"
+        return f"{old_name}进化成了{self.name}！属性重置为：\nHP{self.hp} 攻击{self.attack} 防御{self.defense} 速度{self.speed}"
 
     def is_battle_available(self) -> bool:
         """检查是否可以进行PVP对战（冷却时间）"""
@@ -266,15 +339,28 @@ class Pet:
         self.last_battle_time = datetime.now()
 
     def __str__(self) -> str:
-        """字符串表示"""
+        """返回宠物的详细信息"""
+        # 计算战力值（简化计算）
+        power = self.attack + self.defense + self.speed
+        
+        # 格式化技能列表
         skills_str = "、".join(self.skills) if self.skills else "无"
-        return f"""名称：{self.name}
+        
+        # 获取宠物的原始名称
+        original_name = self.name
+        
+        return f"""主人：{self.owner}
+名称：{self.name} {original_name}
 属性：{self.type}
+战力值：{power}
 等级：{self.level}
 经验值：{self.exp}/{self.level * 100}
-数值：
-HP={self.hp},攻击={self.attack}
-防御={self.defense},速度={self.speed}
+生命值：{self.hp}
+攻击力：{self.attack}
+防御力：{self.defense}
+速度：{self.speed}
+暴击率：5%
+暴击伤害：1.5
 技能：{skills_str}"""
 
 # PetDatabase类
@@ -297,6 +383,7 @@ class PetDatabase:
                 user_id TEXT PRIMARY KEY,
                 pet_name TEXT,
                 pet_type TEXT,
+                owner TEXT DEFAULT '未知',
                 level INTEGER DEFAULT 1,
                 exp INTEGER DEFAULT 0,
                 hp INTEGER DEFAULT 100,
@@ -506,7 +593,7 @@ class PetDatabase:
         
         return result
 
-    def create_pet(self, user_id: str, pet_name: str, pet_type: str) -> bool:
+    def create_pet(self, user_id: str, pet_name: str, pet_type: str, owner: str = "未知") -> bool:
         """创建宠物"""
         try:
             # 检查是否已有宠物
@@ -515,9 +602,9 @@ class PetDatabase:
 
             self.cursor.execute('''
                 INSERT INTO pet_data 
-                (user_id, pet_name, pet_type, skills)
-                VALUES (?, ?, ?, ?)
-            ''', (user_id, pet_name, pet_type, json.dumps([])))
+                (user_id, pet_name, pet_type, skills, owner)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (user_id, pet_name, pet_type, json.dumps([]), owner))
 
             self.conn.commit()
             return True
@@ -527,12 +614,19 @@ class PetDatabase:
 
     def get_pet_data(self, user_id: str) -> Dict[str, Any] | None:
         """获取宠物数据"""
-        self.cursor.execute('SELECT * FROM pet_data WHERE user_id = ?', (user_id,))
+        self.cursor.execute('''
+            SELECT user_id, pet_name, pet_type, owner, level, exp, hp, attack, defense, speed, 
+                   hunger, mood, coins, skills, last_updated, last_battle_time, auto_heal_threshold
+            FROM pet_data 
+            WHERE user_id = ?
+        ''', (user_id,))
+        
         row = self.cursor.fetchone()
         if not row:
             return None
 
-        columns = ['user_id', 'pet_name', 'pet_type', 'level', 'exp', 'hp', 'attack', 'defense', 'speed', 'hunger', 'mood', 'coins', 'skills', 'created_date', 'last_updated', 'last_battle_time']
+        columns = ['user_id', 'pet_name', 'pet_type', 'owner', 'level', 'exp', 'hp', 'attack', 'defense', 'speed', 
+                  'hunger', 'mood', 'coins', 'skills', 'last_updated', 'last_battle_time', 'auto_heal_threshold']
         data = dict(zip(columns, row))
 
         # 解析技能列表
@@ -547,21 +641,13 @@ class PetDatabase:
         """更新宠物数据"""
         # 更新最后修改时间
         kwargs['last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-        update_fields = []
-        values = []
-        for key, value in kwargs.items():
-            # 特殊处理技能列表
-            if key == 'skills':
-                update_fields.append(f"{key} = ?")
-                values.append(json.dumps(value))
-            else:
-                update_fields.append(f"{key} = ?")
-                values.append(value)
-        values.append(user_id)
-
-        sql = f"UPDATE pet_data SET {', '.join(update_fields)} WHERE user_id = ?"
-        self.cursor.execute(sql, values)
+        
+        # 构建SET子句
+        set_clause = ', '.join([f"{key}=?" for key in kwargs.keys()])
+        values = list(kwargs.values()) + [user_id]
+        
+        query = f"UPDATE pet_data SET {set_clause} WHERE user_id=?"
+        self.cursor.execute(query, values)
         self.conn.commit()
 
     def delete_pet(self, user_id: str):
