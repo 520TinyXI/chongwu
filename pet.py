@@ -49,6 +49,7 @@ class Pet:
         self.speed = 10
         self.hunger = 50  # 饥饿度 (0-100)
         self.mood = 50    # 心情 (0-100)
+        self.coins = 0    # 金币
         self.skills: List[str] = []
         self.last_updated = datetime.now()
         self.last_battle_time = datetime.now() - timedelta(hours=1)  # 初始设置为1小时前
@@ -65,6 +66,7 @@ class Pet:
         pet.speed = data.get('speed', 10)
         pet.hunger = data.get('hunger', 50)
         pet.mood = data.get('mood', 50)
+        pet.coins = data.get('coins', 0)
         pet.skills = data.get('skills', [])
         pet.last_updated = datetime.fromisoformat(data.get('last_updated', datetime.now().isoformat()))
         last_battle_time_str = data.get('last_battle_time')
@@ -87,6 +89,7 @@ class Pet:
             'speed': self.speed,
             'hunger': self.hunger,
             'mood': self.mood,
+            'coins': self.coins,
             'skills': self.skills,
             'last_updated': self.last_updated.isoformat(),
             'last_battle_time': self.last_battle_time.isoformat()
@@ -299,6 +302,7 @@ class PetDatabase:
                 speed INTEGER DEFAULT 10,
                 hunger INTEGER DEFAULT 50,
                 mood INTEGER DEFAULT 50,
+                coins INTEGER DEFAULT 0,
                 skills TEXT DEFAULT '[]',
                 created_date TEXT DEFAULT CURRENT_TIMESTAMP,
                 last_updated TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -306,7 +310,197 @@ class PetDatabase:
             )
         ''')
 
+        # 创建商店物品表
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS shop_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                price INTEGER NOT NULL,
+                effect_type TEXT NOT NULL,
+                effect_value INTEGER NOT NULL,
+                effect_value2 INTEGER DEFAULT 0
+            )
+        ''')
+
+        # 创建用户背包表
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_inventory (
+                user_id TEXT NOT NULL,
+                item_name TEXT NOT NULL,
+                quantity INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_id, item_name)
+            )
+        ''')
+
         self.conn.commit()
+
+        # 初始化商店物品
+        self._init_shop_items()
+
+    def _init_shop_items(self):
+        """初始化商店物品"""
+        # 检查是否已有物品
+        self.cursor.execute('SELECT COUNT(*) FROM shop_items')
+        count = self.cursor.fetchone()[0]
+        
+        if count == 0:
+            # 插入商店物品
+            items = [
+                ("普通口粮", "能快速填饱肚子的基础食物。", 20, "hunger", 20, 0),
+                ("美味罐头", "营养均衡，宠物非常爱吃。", 50, "hunger_mood", 20, 20),
+                ("开心饼干", "能让宠物心情愉悦的神奇零食。", 35, "mood", 20, 0),
+                ("小治疗瓶", "能恢复宠物20血量", 20, "hp", 20, 0),
+                ("中治疗瓶", "能恢复宠物50血量", 100, "hp", 50, 0),
+                ("大治疗瓶", "能恢复宠物100血量", 200, "hp", 100, 0)
+            ]
+            
+            self.cursor.executemany('''
+                INSERT INTO shop_items (name, description, price, effect_type, effect_value, effect_value2)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', items)
+            
+            self.conn.commit()
+
+    def get_shop_items(self) -> List[Dict[str, Any]]:
+        """获取商店物品列表"""
+        self.cursor.execute('SELECT * FROM shop_items')
+        rows = self.cursor.fetchall()
+        
+        items = []
+        for row in rows:
+            items.append({
+                'id': row[0],
+                'name': row[1],
+                'description': row[2],
+                'price': row[3],
+                'effect_type': row[4],
+                'effect_value': row[5],
+                'effect_value2': row[6]
+            })
+        
+        return items
+
+    def get_user_inventory(self, user_id: str) -> List[Dict[str, Any]]:
+        """获取用户背包物品"""
+        self.cursor.execute('SELECT item_name, quantity FROM user_inventory WHERE user_id = ?', (user_id,))
+        rows = self.cursor.fetchall()
+        
+        items = []
+        for row in rows:
+            items.append({
+                'name': row[0],
+                'quantity': row[1]
+            })
+        
+        return items
+
+    def add_item_to_inventory(self, user_id: str, item_name: str, quantity: int = 1):
+        """添加物品到用户背包"""
+        # 检查是否已存在该物品
+        self.cursor.execute('''
+            SELECT quantity FROM user_inventory 
+            WHERE user_id = ? AND item_name = ?
+        ''', (user_id, item_name))
+        
+        row = self.cursor.fetchone()
+        if row:
+            # 更新数量
+            new_quantity = row[0] + quantity
+            self.cursor.execute('''
+                UPDATE user_inventory 
+                SET quantity = ? 
+                WHERE user_id = ? AND item_name = ?
+            ''', (new_quantity, user_id, item_name))
+        else:
+            # 插入新记录
+            self.cursor.execute('''
+                INSERT INTO user_inventory (user_id, item_name, quantity)
+                VALUES (?, ?, ?)
+            ''', (user_id, item_name, quantity))
+        
+        self.conn.commit()
+
+    def remove_item_from_inventory(self, user_id: str, item_name: str, quantity: int = 1) -> bool:
+        """从用户背包移除物品"""
+        # 检查是否拥有足够数量的物品
+        self.cursor.execute('''
+            SELECT quantity FROM user_inventory 
+            WHERE user_id = ? AND item_name = ?
+        ''', (user_id, item_name))
+        
+        row = self.cursor.fetchone()
+        if not row:
+            return False
+        
+        current_quantity = row[0]
+        if current_quantity < quantity:
+            return False
+        
+        # 更新数量
+        new_quantity = current_quantity - quantity
+        if new_quantity <= 0:
+            # 删除记录
+            self.cursor.execute('''
+                DELETE FROM user_inventory 
+                WHERE user_id = ? AND item_name = ?
+            ''', (user_id, item_name))
+        else:
+            # 更新数量
+            self.cursor.execute('''
+                UPDATE user_inventory 
+                SET quantity = ? 
+                WHERE user_id = ? AND item_name = ?
+            ''', (new_quantity, user_id, item_name))
+        
+        self.conn.commit()
+        return True
+
+    def use_item_on_pet(self, user_id: str, item_name: str, pet: Pet) -> str:
+        """对宠物使用物品"""
+        # 检查是否拥有该物品
+        self.cursor.execute('''
+            SELECT quantity FROM user_inventory 
+            WHERE user_id = ? AND item_name = ?
+        ''', (user_id, item_name))
+        
+        row = self.cursor.fetchone()
+        if not row or row[0] <= 0:
+            return f"你没有{item_name}！"
+        
+        # 获取物品效果
+        self.cursor.execute('''
+            SELECT effect_type, effect_value, effect_value2 FROM shop_items 
+            WHERE name = ?
+        ''', (item_name,))
+        
+        item_row = self.cursor.fetchone()
+        if not item_row:
+            return f"无效的物品{item_name}！"
+        
+        effect_type, effect_value, effect_value2 = item_row
+        
+        # 应用效果
+        result = f"使用了{item_name}！"
+        if effect_type == "hunger":
+            pet.hunger = min(100, pet.hunger + effect_value)
+            result += f"\n{pet.name}的饥饿度恢复了{effect_value}点！"
+        elif effect_type == "mood":
+            pet.mood = min(100, pet.mood + effect_value)
+            result += f"\n{pet.name}的心情恢复了{effect_value}点！"
+        elif effect_type == "hp":
+            hp_restored = min(effect_value, (100 + pet.level * 20) - pet.hp)
+            pet.hp = min(100 + pet.level * 20, pet.hp + effect_value)
+            result += f"\n{pet.name}的HP恢复了{hp_restored}点！"
+        elif effect_type == "hunger_mood":
+            pet.hunger = min(100, pet.hunger + effect_value)
+            pet.mood = min(100, pet.mood + effect_value2)
+            result += f"\n{pet.name}的饥饿度恢复了{effect_value}点，心情恢复了{effect_value2}点！"
+        
+        # 从背包中移除物品
+        self.remove_item_from_inventory(user_id, item_name, 1)
+        
+        return result
 
     def create_pet(self, user_id: str, pet_name: str, pet_type: str) -> bool:
         """创建宠物"""
@@ -334,7 +528,7 @@ class PetDatabase:
         if not row:
             return None
 
-        columns = ['user_id', 'pet_name', 'pet_type', 'level', 'exp', 'hp', 'attack', 'defense', 'speed', 'hunger', 'mood', 'skills', 'created_date', 'last_updated', 'last_battle_time']
+        columns = ['user_id', 'pet_name', 'pet_type', 'level', 'exp', 'hp', 'attack', 'defense', 'speed', 'hunger', 'mood', 'coins', 'skills', 'created_date', 'last_updated', 'last_battle_time']
         data = dict(zip(columns, row))
 
         # 解析技能列表

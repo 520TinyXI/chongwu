@@ -118,7 +118,7 @@ class PetImageGenerator:
 
             # 绘制标题(居中)
             title = "宠物信息卡"
-            draw.text((W / 2, 50), title, font=font_title, fill=(0, 0, 0), anchor="mt")
+            draw.text((W / 2, 50), title, font=font_title, fill=(255, 255, 255), anchor="mt")
 
             # 绘制文本信息(右侧)
             lines = text.split('\n')
@@ -127,7 +127,7 @@ class PetImageGenerator:
             
             # 绘制文本信息(右侧)
             for line in lines:
-                draw.text((400, y_offset), line, font=font_text, fill=(0, 0, 0))
+                draw.text((400, y_offset), line, font=font_text, fill=(255, 255, 255))
                 y_offset += line_spacing
 
             output_path = os.path.join(self.output_dir, f"pet_{int(datetime.now().timestamp())}.png")
@@ -490,6 +490,12 @@ class QQPetPlugin(Star):
 /治疗宠物 - 治疗受伤的宠物
 /宠物大全 - 显示游戏内所有宠物
 /宠物菜单 - 显示此帮助菜单
+/查看金币 - 查看当前拥有的金币数量
+/商店 - 查看商店可购买的物品
+/购买 [物品ID] - 购买商店中的物品
+/投喂 [物品名] - 给宠物使用背包中的物品
+/查看技能 - 查看宠物已学习的技能
+/使用技能 [技能名] - 在对战中使用宠物技能
 
 属性克制关系:
 金克木 | 木克土 | 土克水 | 水克火 | 火克金
@@ -638,9 +644,27 @@ class QQPetPlugin(Star):
             while pet.is_alive() and opponent.is_alive():
                 if player_first:
                     # 玩家攻击
-                    damage = pet.calculate_damage(opponent)
-                    opponent.hp = max(0, opponent.hp - damage)
-                    battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                    # 检查是否可以使用技能
+                    use_skill = False
+                    skill_used = ""
+                    if pet.skills and random.random() < 0.3:  # 30%概率使用技能
+                        skill_used = random.choice(pet.skills)
+                        use_skill = True
+                        
+                        # 根据技能类型计算伤害加成
+                        skill_damage_bonus = 0
+                        if skill_used in ['金刃', '火焰冲击', '水炮', '藤鞭', '地震']:
+                            skill_damage_bonus = 10
+                        elif skill_used in ['金属风暴', '熔岩爆发', '海啸', '森林祝福', '地裂']:
+                            skill_damage_bonus = 20
+                        
+                        damage = pet.calculate_damage(opponent) + skill_damage_bonus
+                        opponent.hp = max(0, opponent.hp - damage)
+                        battle_log += f"{pet.name}使用技能{skill_used}攻击{opponent.name}，造成{damage}点伤害！\n"
+                    else:
+                        damage = pet.calculate_damage(opponent)
+                        opponent.hp = max(0, opponent.hp - damage)
+                        battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
                     
                     # 检查对手是否被击败
                     if not opponent.is_alive():
@@ -663,9 +687,27 @@ class QQPetPlugin(Star):
                         break
                     
                     # 玩家攻击
-                    damage = pet.calculate_damage(opponent)
-                    opponent.hp = max(0, opponent.hp - damage)
-                    battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                    # 检查是否可以使用技能
+                    use_skill = False
+                    skill_used = ""
+                    if pet.skills and random.random() < 0.3:  # 30%概率使用技能
+                        skill_used = random.choice(pet.skills)
+                        use_skill = True
+                        
+                        # 根据技能类型计算伤害加成
+                        skill_damage_bonus = 0
+                        if skill_used in ['金刃', '火焰冲击', '水炮', '藤鞭', '地震']:
+                            skill_damage_bonus = 10
+                        elif skill_used in ['金属风暴', '熔岩爆发', '海啸', '森林祝福', '地裂']:
+                            skill_damage_bonus = 20
+                        
+                        damage = pet.calculate_damage(opponent) + skill_damage_bonus
+                        opponent.hp = max(0, opponent.hp - damage)
+                        battle_log += f"{pet.name}使用技能{skill_used}攻击{opponent.name}，造成{damage}点伤害！\n"
+                    else:
+                        damage = pet.calculate_damage(opponent)
+                        opponent.hp = max(0, opponent.hp - damage)
+                        battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
                 
                 # 添加生命值信息
                 battle_log += f"{pet.name}剩余生命值={pet.hp}\n"
@@ -771,4 +813,605 @@ class QQPetPlugin(Star):
         except Exception as e:
             logger.error(f"显示宠物大全失败: {str(e)}")
             yield event.plain_result("显示宠物大全失败了~请联系管理员检查日志")
+
+
+    @filter.command("宠物商店")
+    async def pet_store(self, event: AstrMessageEvent):
+        """显示宠物商店"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 获取商店物品
+            shop_items = self.db.get_shop_items()
+            
+            # 生成商店列表
+            store_list = "@Tiny溪欢迎光临宠物商店！\n--------------------\n"
+            for item in shop_items:
+                store_list += f"【{item['name']}】 ${item['price']}\n效果: {item['description']}\n"
+            store_list += "--------------------\n使用 `购买 [物品名] [数量]` 来购买。"
+            
+            yield event.plain_result(store_list)
+            
+        except Exception as e:
+            logger.error(f"显示宠物商店失败: {str(e)}")
+            yield event.plain_result("显示宠物商店失败了~请联系管理员检查日志")
+    
+    @filter.command("购买")
+    async def buy_item(self, event: AstrMessageEvent, item_name: str = None, quantity: int = 1):
+        """购买物品"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查参数
+            if not item_name:
+                yield event.plain_result("请使用格式: /购买 [物品名] [数量]")
+                return
+            
+            # 获取商店物品
+            shop_items = self.db.get_shop_items()
+            item = next((i for i in shop_items if i["name"] == item_name), None)
+            
+            if not item:
+                yield event.plain_result(f"商店中没有{item_name}！")
+                return
+            
+            # 检查数量
+            if quantity <= 0:
+                yield event.plain_result("购买数量必须大于0！")
+                return
+            
+            # 计算总价
+            total_price = item["price"] * quantity
+            
+            # 检查是否有足够的金币
+            if user_id in self.pets:
+                pet = self.pets[user_id]
+                if pet.coins < total_price:
+                    yield event.plain_result(f"金币不足！您需要{total_price}金币，但只有{pet.coins}金币。")
+                    return
+                
+                # 扣除金币
+                pet.coins -= total_price
+                # 更新数据库
+                self.db.update_pet_data(user_id, coins=pet.coins)
+            
+            # 添加物品到背包
+            self.db.add_item_to_inventory(user_id, item_name, quantity)
+            
+            yield event.plain_result(f"成功购买{quantity}个{item_name}，花费{total_price}金币！您还剩余{pet.coins}金币。")
+            
+        except Exception as e:
+            logger.error(f"购买物品失败: {str(e)}")
+            yield event.plain_result("购买物品失败了~请联系管理员检查日志")
+    
+    @filter.command("探索")
+    async def explore(self, event: AstrMessageEvent):
+        """探索功能"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 生成随机事件
+            event_type = random.random()
+            
+            if event_type < 0.05:  # 5%机缘事件
+                event_result = "遇到了隐士高人，赠与金币100至1000随机并传授你的宠物1000经验值"
+                
+                # 随机金币和经验
+                gold = random.randint(100, 1000)
+                exp = 1000
+                
+                # 增加金币
+                pet.coins += gold
+                
+                # 增加宠物经验
+                pet.exp += exp
+                
+                # 检查是否升级
+                level_up = False
+                if pet.exp >= pet.level * 100:
+                    pet.level_up()
+                    level_up = True
+                
+                # 更新数据库
+                self.db.update_pet_data(
+                    user_id,
+                    coins=pet.coins,
+                    exp=pet.exp,
+                    level=pet.level,
+                    hp=pet.hp,
+                    attack=pet.attack,
+                    defense=pet.defense,
+                    speed=pet.speed,
+                    skills=pet.skills
+                )
+                
+                result = f"{event_result}\n获得{gold}金币和{exp}经验值！"
+                if level_up:
+                    result += f"\n{pet.name}升级了！"
+                
+            elif event_type < 0.20:  # 15%好事件
+                good_events = [
+                    "路上捡到了医疗箱，打开后发现【1-10瓶中治疗瓶随机】",
+                    "碰到了一个老太太，她见你骨骼精奇，给你宠物传授了500经验值",
+                    "一个小女孩撞到了你，她给你道歉后送你美味罐头10-15【随机】个",
+                    "遇到一个好心的商人，他免费送给你【3-8个小治疗瓶】",
+                    "在河边捡到了一些金币【100-500随机】！"
+                ]
+                event_result = random.choice(good_events)
+                
+                if "医疗箱" in event_result:
+                    # 随机中治疗瓶数量
+                    quantity = random.randint(1, 10)
+                    self.db.add_item_to_inventory(user_id, "中治疗瓶", quantity)
+                    result = f"{event_result}\n获得{quantity}瓶中治疗瓶！"
+                elif "老太太" in event_result:
+                    # 增加宠物经验
+                    exp = 500
+                    pet.exp += exp
+                    
+                    # 检查是否升级
+                    level_up = False
+                    if pet.exp >= pet.level * 100:
+                        pet.level_up()
+                        level_up = True
+                    
+                    # 更新数据库
+                    self.db.update_pet_data(
+                        user_id,
+                        exp=pet.exp,
+                        level=pet.level,
+                        hp=pet.hp,
+                        attack=pet.attack,
+                        defense=pet.defense,
+                        speed=pet.speed,
+                        skills=pet.skills
+                    )
+                    
+                    result = f"{event_result}\n获得{exp}经验值！"
+                    if level_up:
+                        result += f"\n{pet.name}升级了！"
+                elif "好心的商人" in event_result:
+                    # 随机小治疗瓶数量
+                    quantity = random.randint(3, 8)
+                    self.db.add_item_to_inventory(user_id, "小治疗瓶", quantity)
+                    result = f"{event_result}\n获得{quantity}瓶小治疗瓶！"
+                elif "捡到了一些金币" in event_result:
+                    # 随机金币数量
+                    gold = random.randint(100, 500)
+                    pet.coins += gold
+                    
+                    # 更新数据库
+                    self.db.update_pet_data(
+                        user_id,
+                        coins=pet.coins
+                    )
+                    
+                    result = f"{event_result}\n获得{gold}金币！"
+                else:  # 小女孩事件
+                    # 随机美味罐头数量
+                    quantity = random.randint(10, 15)
+                    self.db.add_item_to_inventory(user_id, "美味罐头", quantity)
+                    result = f"{event_result}\n获得{quantity}个美味罐头！"
+            else:  # 80%坏事件
+                bad_events = [
+                    "碰到了邪恶训练师【等级】\n你不得不和他对战！！！",
+                    "你掉进了陷阱！！遇到了哥布林【等级】",
+                    "你看见了一只发疯的魔灵兔【等级】，你准备为民除害！！",
+                    "你迷路了，遇到了神秘的黑暗法师【等级】！",
+                    "好！你踩到了地刺陷阱，生命值减少，同时遭遇了地龙【等级】！"
+                ]
+                event_result = random.choice(bad_events)
+                
+                # 根据事件类型创建不同的对手
+                if "黑暗法师" in event_result:
+                    opponent = Pet("黑暗法师暗影", "暗")
+                    # 设置对手等级为当前宠物等级+2级
+                    opponent.level = pet.level + 2
+                    # 调整对手属性
+                    opponent.hp = 100 + opponent.level * 25
+                    opponent.attack = 15 + opponent.level * 6
+                    opponent.defense = 8 + opponent.level * 4
+                    opponent.speed = 10 + opponent.level * 3
+                elif "地刺陷阱" in event_result:
+                    # 先减少玩家生命值
+                    damage = random.randint(10, 30)
+                    pet.hp = max(1, pet.hp - damage)  # 至少保留1点生命值
+                    
+                    opponent = Pet("地龙岩石", "地")
+                    # 设置对手等级为当前宠物等级
+                    opponent.level = pet.level
+                    # 调整对手属性
+                    opponent.hp = 90 + opponent.level * 22
+                    opponent.attack = 12 + opponent.level * 5
+                    opponent.defense = 6 + opponent.level * 4
+                    opponent.speed = 6 + opponent.level * 2
+                else:
+                    # 默认对手生成逻辑
+                    opponent_types = ["火", "水", "草", "电", "普通"]
+                    opponent_type = random.choice(opponent_types)
+                    opponent_names = ["邪恶训练师", "哥布林", "魔灵兔"]
+                    opponent_name = random.choice(opponent_names)
+                    opponent = Pet(f"{opponent_name}{opponent_type}", opponent_type)
+                    
+                    # 设置对手等级为当前宠物等级±2级
+                    level_diff = random.randint(-2, 2)
+                    opponent.level = max(1, pet.level + level_diff)
+                    
+                    # 根据等级调整对手属性
+                    opponent.hp = 80 + opponent.level * 20
+                    opponent.attack = 8 + opponent.level * 5
+                    opponent.defense = 3 + opponent.level * 3
+                    opponent.speed = 8 + opponent.level * 2
+                
+                # 对战过程
+                battle_log = f"{event_result.replace('【等级】', f'【{opponent.level}级】')}\n"
+                battle_log += f"{pet.name} vs {opponent.name}\n"
+                battle_log += f"{pet.name}基础数值：\n"
+                battle_log += f"HP={pet.hp},攻击={pet.attack}\n"
+                battle_log += f"防御={pet.defense},速度={pet.speed}\n"
+                battle_log += "--------------------\n"
+                battle_log += f"{opponent.name}基础数值：\n"
+                battle_log += f"HP={opponent.hp},攻击={opponent.attack}\n"
+                battle_log += f"防御={opponent.defense},速度={opponent.speed}\n"
+                battle_log += "-------------------\n"
+                
+                # 决定先手
+                if pet.speed > opponent.speed:
+                    battle_log += f"{pet.name}速度最快！\n由{pet.name}率先攻击！\n"
+                    player_first = True
+                elif opponent.speed > pet.speed:
+                    battle_log += f"{opponent.name}速度最快！\n由{opponent.name}率先攻击！\n"
+                    player_first = False
+                else:
+                    # 速度相同，投骰子决定先后
+                    battle_log += "双方速度相同，将投骰子决定先后！\n"
+                    player_roll = random.randint(1, 6)
+                    opponent_roll = random.randint(1, 6)
+                    battle_log += f"{pet.name}：{player_roll}点\n"
+                    battle_log += f"{opponent.name}：{opponent_roll}点\n"
+                    if player_roll >= opponent_roll:
+                        battle_log += f"{pet.name}点数最高！\n将由{pet.name}先行攻击！\n"
+                        player_first = True
+                    else:
+                        battle_log += f"{opponent.name}点数最高！\n将由{opponent.name}先行攻击！\n"
+                        player_first = False
+                
+                battle_log += "==============================\n"
+                
+                # 战斗循环
+                while pet.is_alive() and opponent.is_alive():
+                    if player_first:
+                        # 玩家攻击
+                        damage = pet.calculate_damage(opponent)
+                        opponent.hp = max(0, opponent.hp - damage)
+                        battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                        
+                        # 检查对手是否被击败
+                        if not opponent.is_alive():
+                            battle_log += f"{opponent.name}被击败了！\n"
+                            break
+                        
+                        # 对手攻击
+                        damage = opponent.calculate_damage(pet)
+                        pet.hp = max(0, pet.hp - damage)
+                        battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                    else:
+                        # 对手攻击
+                        damage = opponent.calculate_damage(pet)
+                        pet.hp = max(0, pet.hp - damage)
+                        battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                        
+                        # 检查玩家是否被击败
+                        if not pet.is_alive():
+                            battle_log += f"{pet.name}被击败了！\n"
+                            break
+                        
+                        # 玩家攻击
+                        damage = pet.calculate_damage(opponent)
+                        opponent.hp = max(0, opponent.hp - damage)
+                        battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                    
+                    # 添加生命值信息
+                    battle_log += f"{pet.name}剩余生命值={pet.hp}\n"
+                    battle_log += f"{opponent.name}剩余生命值={opponent.hp}\n"
+                    battle_log += "--------------------\n"
+                
+                # 战斗结果
+                if pet.is_alive():
+                    # 玩家获胜
+                    exp_gain = opponent.level * 20
+                    pet.exp += exp_gain
+                    
+                    # 检查是否升级
+                    level_up = False
+                    if pet.exp >= pet.level * 100:
+                        pet.level_up()
+                        level_up = True
+                    
+                    # 获得金币奖励
+                    coins_gain = opponent.level * 10
+                    pet.coins += coins_gain
+                    
+                    # 更新数据库
+                    self.db.update_pet_data(
+                        user_id,
+                        level=pet.level,
+                        exp=pet.exp,
+                        hp=pet.hp,
+                        attack=pet.attack,
+                        defense=pet.defense,
+                        speed=pet.speed,
+                        skills=pet.skills,
+                        coins=pet.coins
+                    )
+                    
+                    battle_log += f"\n战斗胜利！{pet.name}剩余生命值={pet.hp}\n"
+                    battle_log += f"战斗胜利！{pet.name}获得了{exp_gain}点经验值和{coins_gain}金币！"
+                    if level_up:
+                        battle_log += f"\n{pet.name}升级了！"
+                else:
+                    # 玩家失败
+                    battle_log += f"\n战斗失败！{pet.name}被击败了！"
+                    
+                    # 更新数据库
+                    self.db.update_pet_data(
+                        user_id,
+                        hp=pet.hp
+                    )
+                
+                result = battle_log
+            
+            yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"探索失败: {str(e)}")
+            yield event.plain_result("探索失败了~请联系管理员检查日志")
+    
+    @filter.command("宠物背包")
+    async def pet_inventory(self, event: AstrMessageEvent):
+        """查看宠物背包"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 获取用户背包
+            inventory = self.db.get_user_inventory(user_id)
+            
+            if not inventory:
+                yield event.plain_result("您的背包是空的！")
+                return
+            
+            # 生成背包列表
+            inventory_list = "您的宠物背包：\n"
+            for item in inventory:
+                inventory_list += f"{item['name']}: {item['quantity']}\n"
+            
+            yield event.plain_result(inventory_list)
+            
+        except Exception as e:
+            logger.error(f"查看宠物背包失败: {str(e)}")
+            yield event.plain_result("查看宠物背包失败了~请联系管理员检查日志")
+    
+    @filter.command("投喂")
+    async def feed_pet(self, event: AstrMessageEvent, item_name: str = None):
+        """投喂宠物"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查参数
+            if not item_name:
+                yield event.plain_result("请使用格式: /投喂 [物品名]")
+                return
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 检查背包中是否有该物品
+            inventory = self.db.get_user_inventory(user_id)
+            item_found = False
+            for item in inventory:
+                if item['name'] == item_name and item['quantity'] > 0:
+                    item_found = True
+                    break
+            
+            if not item_found:
+                yield event.plain_result(f"您的背包中没有{item_name}！")
+                return
+            
+            # 使用物品
+            result = self.db.use_item_on_pet(user_id, item_name, pet)
+            
+            # 更新数据库
+            self.db.update_pet_data(
+                user_id,
+                hp=pet.hp,
+                hunger=pet.hunger,
+                mood=pet.mood
+            )
+            
+            yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"投喂宠物失败: {str(e)}")
+            yield event.plain_result("投喂宠物失败了~请联系管理员检查日志")
+    
+    @filter.command("查看金币")
+    async def check_coins(self, event: AstrMessageEvent):
+        """查看玩家金币数量"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 返回金币数量
+            yield event.plain_result(f"您的金币数量：{pet.coins}")
+            
+        except Exception as e:
+            logger.error(f"查看金币失败: {str(e)}")
+            yield event.plain_result("查看金币失败了~请联系管理员检查日志")
+    
+    @filter.command("查看技能")
+    async def check_skills(self, event: AstrMessageEvent):
+        """查看宠物技能"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 返回技能列表
+            if pet.skills:
+                skills_list = "、".join(pet.skills)
+                yield event.plain_result(f"{pet.name}已学习的技能：{skills_list}")
+            else:
+                yield event.plain_result(f"{pet.name}还没有学习任何技能！")
+            
+        except Exception as e:
+            logger.error(f"查看技能失败: {str(e)}")
+            yield event.plain_result("查看技能失败了~请联系管理员检查日志")
+    
+    @filter.command("使用技能")
+    async def use_skill(self, event: AstrMessageEvent, skill_name: str = None):
+        """使用技能"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查参数
+            if not skill_name:
+                yield event.plain_result("请使用格式: /使用技能 [技能名]")
+                return
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 检查宠物是否拥有该技能
+            if skill_name not in pet.skills:
+                yield event.plain_result(f"{pet.name}没有学习过{skill_name}技能！")
+                return
+            
+            # 使用技能（这里可以添加具体的技能效果逻辑）
+            result = f"{pet.name}使用了{skill_name}技能！"
+            
+            # 根据技能类型添加效果
+            if skill_name in ['金刃', '火焰冲击', '水炮', '藤鞭', '地震']:
+                result += "\n技能效果：造成额外伤害！"
+            elif skill_name in ['坚固', '大地守护']:
+                result += "\n技能效果：提升防御力！"
+            elif skill_name in ['光合作用', '水雾']:
+                result += "\n技能效果：恢复少量HP！"
+            elif skill_name in ['燃烧', '冰冻']:
+                result += "\n技能效果：使对手进入异常状态！"
+            elif skill_name in ['反射', '寄生种子']:
+                result += "\n技能效果：反弹部分伤害或持续恢复HP！"
+            elif skill_name in ['破甲', '沙尘暴']:
+                result += "\n技能效果：降低对手防御或命中率！"
+            elif skill_name in ['金属风暴', '熔岩爆发', '海啸', '森林祝福', '地裂']:
+                result += "\n技能效果：强大的范围攻击技能！"
+            else:
+                result += "\n技能效果：发挥出了不错的效果！"
+            
+            yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"使用技能失败: {str(e)}")
+            yield event.plain_result("使用技能失败了~请联系管理员检查日志")
+    
+    @filter.command("商店")
+    async def shop(self, event: AstrMessageEvent):
+        """查看商店物品"""
+        try:
+            # 获取商店物品列表
+            items = self.db.get_shop_items()
+            
+            if not items:
+                yield event.plain_result("商店暂时没有物品出售！")
+                return
+            
+            # 生成商店列表
+            shop_list = "欢迎来到宠物商店！\n"
+            shop_list += "物品列表：\n"
+            for item in items:
+                shop_list += f"{item['id']}. {item['name']} - {item['price']}金币\n"
+                shop_list += f"   {item['description']}\n\n"
+            
+            shop_list += "购买物品请使用: /购买 [物品ID]"
+            
+            yield event.plain_result(shop_list)
+            
+        except Exception as e:
+            logger.error(f"查看商店失败: {str(e)}")
+            yield event.plain_result("查看商店失败了~请联系管理员检查日志")
+    
+    @filter.command("购买")
+    async def buy_item(self, event: AstrMessageEvent, item_id: str = None):
+        """购买商店物品"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查参数
+            if not item_id:
+                yield event.plain_result("请使用格式: /购买 [物品ID]")
+                return
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 获取商店物品
+            items = self.db.get_shop_items()
+            item = None
+            for i in items:
+                if str(i['id']) == item_id:
+                    item = i
+                    break
+            
+            if not item:
+                yield event.plain_result("无效的物品ID！")
+                return
+            
+            # 检查金币是否足够
+            if pet.coins < item['price']:
+                yield event.plain_result(f"金币不足！您需要{item['price']}金币来购买{item['name']}。")
+                return
+            
+            # 扣除金币
+            pet.coins -= item['price']
+            
+            # 添加物品到背包
+            self.db.add_item_to_inventory(user_id, item['name'], 1)
+            
+            # 更新数据库
+            self.db.update_pet_data(user_id, coins=pet.coins)
+            
+            yield event.plain_result(f"成功购买{item['name']}！花费了{item['price']}金币，剩余金币：{pet.coins}")
+            
+        except Exception as e:
+            logger.error(f"购买物品失败: {str(e)}")
+            yield event.plain_result("购买物品失败了~请联系管理员检查日志")
 
