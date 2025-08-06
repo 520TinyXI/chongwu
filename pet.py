@@ -228,30 +228,19 @@ class Pet:
                 level_diff = self.level - 1
                 self.critical_rate = 0.15 + level_diff * 0.002
                 self.critical_damage = 1.8 + level_diff * 0.003
-            # 设置基础暴击属性
-            if self.level == 1:
-                if self.name == "金刚":
-                    self.critical_rate = 0.15  # 15%暴击率
-                    self.critical_damage = 1.8  # 180%暴击伤害
-                elif self.name == "破甲战犀":
-                    self.critical_rate = 0.25  # 25%暴击率
-                    self.critical_damage = 1.8   # 180%暴击伤害
-                else:
-                    self.critical_rate = 0.05  # 5%暴击率
-                    self.critical_damage = 1.5  # 150%暴击伤害
-            else:
-                # 根据等级计算暴击属性
+            elif self.name == "破甲战犀":
+                # 每级暴击率+0.3%、暴伤+0.4%
                 level_diff = self.level - 1
-                if self.name == "金刚":
-                    self.critical_rate = 0.15 + level_diff * 0.002
-                    self.critical_damage = 1.8 + level_diff * 0.003
-                elif self.name == "破甲战犀":
-                    self.critical_rate = 0.25 + level_diff * 0.003
-                    self.critical_damage = 1.8 + level_diff * 0.004
-                else:
-                    # 其他非金属性宠物保持基础暴击属性
-                    self.critical_rate = 0.05
-                    self.critical_damage = 1.5
+                self.critical_rate = 0.25 + level_diff * 0.003
+                self.critical_damage = 1.8 + level_diff * 0.004
+            else:
+                # 其他金属性宠物使用基础暴击属性
+                self.critical_rate = 0.05
+                self.critical_damage = 1.5
+        else:
+            # 非金属性宠物使用基础暴击属性
+            self.critical_rate = 0.05
+            self.critical_damage = 1.5
                 
     def is_alive(self) -> bool:
         """检查宠物是否存活"""
