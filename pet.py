@@ -80,7 +80,7 @@ class Pet:
         if self.type == "金":
             if self.name == "金刚":
                 self.critical_rate = 0.15  # 15%暴击率
-                self.critical_damage = 1.65  # 165%暴击伤害
+                self.critical_damage = 1.8  # 180%暴击伤害
             elif self.name == "破甲战犀":
                 self.critical_rate = 0.25  # 25%暴击率
                 self.critical_damage = 1.8  # 180%暴击伤害
@@ -227,12 +227,12 @@ class Pet:
                 # 每级暴击率+0.2%、暴伤+0.3%
                 level_diff = self.level - 1
                 self.critical_rate = 0.15 + level_diff * 0.002
-                self.critical_damage = 1.65 + level_diff * 0.003
+                self.critical_damage = 1.8 + level_diff * 0.003
             # 设置基础暴击属性
             if self.level == 1:
                 if self.name == "金刚":
                     self.critical_rate = 0.15  # 15%暴击率
-                    self.critical_damage = 1.65  # 165%暴击伤害
+                    self.critical_damage = 1.8  # 180%暴击伤害
                 elif self.name == "破甲战犀":
                     self.critical_rate = 0.25  # 25%暴击率
                     self.critical_damage = 1.8   # 180%暴击伤害
@@ -244,7 +244,7 @@ class Pet:
                 level_diff = self.level - 1
                 if self.name == "金刚":
                     self.critical_rate = 0.15 + level_diff * 0.002
-                    self.critical_damage = 1.65 + level_diff * 0.003
+                    self.critical_damage = 1.8 + level_diff * 0.003
                 elif self.name == "破甲战犀":
                     self.critical_rate = 0.25 + level_diff * 0.003
                     self.critical_damage = 1.8 + level_diff * 0.004
@@ -407,12 +407,6 @@ class Pet:
         """更新最后对战时间"""
         self.last_battle_time = datetime.now()
 
-    def get_exp_required(self, level: int) -> int:
-        """计算指定等级所需的经验值"""
-        if level <= 1:
-            return 100
-        return int(100 * (1.88 ** (level - 1)))
-    
     def level_up(self):
         """升级处理"""
         self.level += 1
@@ -439,24 +433,14 @@ class Pet:
         skills_str = "、".join(self.skills) if self.skills else "无"
         
         # 获取宠物的原始名称
-        original_names = {
-            "炽焰龙": "烈焰",
-            "瀚海蛟": "碧波兽",
-            "赤镰战甲": "藤甲虫",
-            "岩脊守护者": "碎裂岩",
-            "破甲战犀": "金刚"
-        }
-        original_name = original_names.get(self.name, self.name)
-        
-        # 显示格式：【主人取的名】【宠物原本的名字】
-        display_name = f"【{self.name}】【{original_name}】" if self.name != original_name else self.name
+        original_name = self.name
         
         return f"""主人：{self.owner}
-名称：{display_name}
+名称：{self.name} {original_name}
 属性：{self.type}
 战力值：{power}
 等级：{self.level}
-经验值：{self.exp}/{self.get_exp_required(self.level)}
+经验值：{self.exp}/{self.level * 100}
 生命值：{self.hp}
 攻击力：{self.attack}
 防御力：{self.defense}
