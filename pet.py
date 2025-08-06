@@ -407,6 +407,12 @@ class Pet:
         """更新最后对战时间"""
         self.last_battle_time = datetime.now()
 
+    def get_exp_required(self, level: int) -> int:
+        """计算指定等级所需的经验值"""
+        if level <= 1:
+            return 100
+        return int(100 * (1.88 ** (level - 1)))
+    
     def level_up(self):
         """升级处理"""
         self.level += 1
@@ -450,7 +456,7 @@ class Pet:
 属性：{self.type}
 战力值：{power}
 等级：{self.level}
-经验值：{self.exp}/{self.level * 100}
+经验值：{self.exp}/{self.get_exp_required(self.level)}
 生命值：{self.hp}
 攻击力：{self.attack}
 防御力：{self.defense}
