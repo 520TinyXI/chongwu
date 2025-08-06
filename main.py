@@ -292,13 +292,8 @@ class QQPetPlugin(Star):
             )
             
             # 生成进化结果图片
-            image_path = await self.img_gen.create_pet_image(result, pet.type)
-            if image_path:
-                yield event.image_result(image_path)
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-            else:
-                yield event.plain_result(result)
+            # 直接返回纯文字结果，不生成图片
+            yield event.plain_result(result)
             
         except Exception as e:
             logger.error(f"宠物进化失败: {str(e)}")
@@ -468,14 +463,8 @@ class QQPetPlugin(Star):
                 hp=opponent_pet.hp
             )
             
-            # 生成对战结果图片
-            image_path = await self.img_gen.create_pet_image(battle_log, pet.type)
-            if image_path:
-                yield event.image_result(image_path)
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-            else:
-                yield event.plain_result(battle_log)
+            # 直接返回纯文字结果，不生成图片
+            yield event.plain_result(battle_log)
             
         except Exception as e:
             logger.error(f"宠物对决失败: {str(e)}")
@@ -501,13 +490,8 @@ class QQPetPlugin(Star):
 金克木 | 木克土 | 土克水 | 水克火 | 火克金
 克制目标伤害增幅20%"""
             
-            image_path = await self.img_gen.create_pet_image(menu)
-            if image_path:
-                yield event.image_result(image_path)
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-            else:
-                yield event.plain_result(menu)
+            # 直接返回纯文字结果，不生成图片
+            yield event.plain_result(menu)
             
         except Exception as e:
             logger.error(f"显示宠物菜单失败: {str(e)}")
@@ -532,7 +516,7 @@ class QQPetPlugin(Star):
             # 保存到数据库
             self.db.update_pet_data(user_id, **pet.to_dict())
             
-            # 生成结果图片
+            # 生成状态卡图片
             result = str(pet)
             image_path = await self.img_gen.create_pet_image(result, pet.type)
             if image_path:
@@ -694,14 +678,8 @@ class QQPetPlugin(Star):
                     hp=pet.hp
                 )
             
-            # 生成对战结果图片
-            image_path = await self.img_gen.create_pet_image(battle_log, pet.type)
-            if image_path:
-                yield event.image_result(image_path)
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-            else:
-                yield event.plain_result(battle_log)
+            # 直接返回纯文字结果，不生成图片
+            yield event.plain_result(battle_log)
             
         except Exception as e:
             logger.error(f"宠物对战失败: {str(e)}")
@@ -760,21 +738,8 @@ class QQPetPlugin(Star):
             pet_list = "\n".join([f"【{pet['name']}】 {pet['type']}" for pet in pet_options])
             result = f"游戏内所有宠物:\n{pet_list}"
             
-            # 尝试生成图片
-            try:
-                image_path = await self.img_gen.create_pet_image(result)
-                if image_path:
-                    yield event.image_result(image_path)
-                    # 延迟删除临时文件，避免文件被占用
-                    import asyncio
-                    await asyncio.sleep(1)
-                    if os.path.exists(image_path):
-                        os.remove(image_path)
-                else:
-                    yield event.plain_result(result)
-            except Exception as e:
-                logger.error(f"生成图片失败: {str(e)}")
-                yield event.plain_result(result)
+            # 直接返回纯文字结果，不生成图片
+            yield event.plain_result(result)
             
         except Exception as e:
             logger.error(f"显示宠物大全失败: {str(e)}")
