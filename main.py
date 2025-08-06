@@ -383,7 +383,15 @@ class QQPetPlugin(Star):
                 return
             
             # 对战过程
-            battle_log = f"{pet.name} vs {opponent_pet.name}\n" + "="*30 + "\n"
+            battle_log = f"{pet.name} vs {opponent_pet.name}\n"
+            battle_log += f"\u200b{pet.name}基础数值：\n"
+            battle_log += f"HP={pet.hp},攻击={pet.attack}\n"
+            battle_log += f"防御={pet.defense},速度={pet.speed}\n"
+            battle_log += "--------------------\n"
+            battle_log += f"{opponent_pet.name}基础数值：\n"
+            battle_log += f"HP={opponent_pet.hp},攻击={opponent_pet.attack}\n"
+            battle_log += f"防御={opponent_pet.defense},速度={opponent_pet.speed}\n"
+            battle_log += "==============================\n"
             
             # 决定先手
             player_first = pet.speed >= opponent_pet.speed
@@ -421,7 +429,7 @@ class QQPetPlugin(Star):
                     battle_log += f"{pet.name}攻击{opponent_pet.name}，造成{damage}点伤害！\n"
                 
                 # 添加分隔线
-                battle_log += "-"*20 + "\n"
+                battle_log += "--------------------\n"
             
             # 更新对战时间
             pet.update_battle_time()
@@ -601,7 +609,15 @@ class QQPetPlugin(Star):
             opponent.speed = 8 + opponent.level * 2
             
             # 对战过程
-            battle_log = f"{pet.name} vs {opponent.name}\n" + "="*30 + "\n"
+            battle_log = f"{pet.name} vs {opponent.name}\n"
+            battle_log += f"\u200b{pet.name}基础数值：\n"
+            battle_log += f"HP={pet.hp},攻击={pet.attack}\n"
+            battle_log += f"防御={pet.defense},速度={pet.speed}\n"
+            battle_log += "--------------------\n"
+            battle_log += f"{opponent.name}基础数值：\n"
+            battle_log += f"HP={opponent.hp},攻击={opponent.attack}\n"
+            battle_log += f"防御={opponent.defense},速度={opponent.speed}\n"
+            battle_log += "==============================\n"
             
             # 决定先手
             player_first = pet.speed >= opponent.speed
@@ -639,7 +655,7 @@ class QQPetPlugin(Star):
                     battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
                 
                 # 添加分隔线
-                battle_log += "-"*20 + "\n"
+                battle_log += "--------------------\n"
             
             # 战斗结果
             if pet.is_alive():
