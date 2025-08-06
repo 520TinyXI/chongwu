@@ -872,51 +872,64 @@ class QQPetPlugin(Star):
                 event_result = random.choice(bad_events)
                 
                 # 根据事件类型创建不同的对手
-                if "黑暗法师" in event_result:
-                    opponent = Pet("黑暗法师暗影", "暗")
-                    # 设置对手等级为当前宠物等级+2级
-                    opponent.level = pet.level + 2
-                    # 调整对手属性
-                    opponent.update_stats()
-                elif "地刺陷阱" in event_result:
-                    # 先减少玩家生命值
-                    damage = random.randint(10, 30)
-                    pet.hp = max(1, pet.hp - damage)  # 至少保留1点生命值
-                    
-                    opponent = Pet("地龙岩石", "地")
-                    # 设置对手等级为当前宠物等级
+                try:
+                    if "黑暗法师" in event_result:
+                        opponent = Pet("黑暗法师暗影", "暗")
+                        # 设置对手等级为当前宠物等级+2级
+                        opponent.level = pet.level + 2
+                        # 调整对手属性
+                        opponent.update_stats()
+                    elif "地刺陷阱" in event_result:
+                        # 先减少玩家生命值
+                        damage = random.randint(10, 30)
+                        pet.hp = max(1, pet.hp - damage)  # 至少保留1点生命值
+                        
+                        opponent = Pet("地龙岩石", "土")  # 修正：使用"土"而不是"地"
+                        # 设置对手等级为当前宠物等级
+                        opponent.level = pet.level
+                        # 调整对手属性
+                        opponent.update_stats()
+                    elif "魔灵兔" in event_result:
+                        # 生成魔灵兔对手
+                        opponent = Pet("魔灵兔普通", "普通")
+                        # 设置对手等级为当前宠物等级
+                        opponent.level = pet.level
+                        # 调整对手属性
+                        opponent.update_stats()
+                    elif "哥布林" in event_result:
+                        # 生成哥布林对手
+                        opponent_types = ["火", "水", "草", "电"]
+                        opponent_type = random.choice(opponent_types)
+                        # 确保"电"类型有对应的属性
+                        if opponent_type == "电":
+                            opponent_type = "金"  # 将"电"映射到"金"类型
+                        opponent = Pet(f"哥布林{opponent_type}", opponent_type)
+                        
+                        # 设置对手等级为当前宠物等级-1级
+                        opponent.level = max(1, pet.level - 1)
+                        
+                        # 调整对手属性
+                        opponent.update_stats()
+                    else:
+                        # 默认对手生成逻辑（邪恶训练师）
+                        opponent_types = ["火", "水", "草", "电"]
+                        opponent_type = random.choice(opponent_types)
+                        # 确保"电"类型有对应的属性
+                        if opponent_type == "电":
+                            opponent_type = "金"  # 将"电"映射到"金"类型
+                        opponent = Pet(f"邪恶训练师{opponent_type}", opponent_type)
+                        
+                        # 设置对手等级为当前宠物等级±1级
+                        level_diff = random.randint(-1, 1)
+                        opponent.level = max(1, pet.level + level_diff)
+                        
+                        # 根据等级调整对手属性
+                        opponent.update_stats()
+                except Exception as e:
+                    logger.error(f"生成对手失败: {str(e)}")
+                    # 如果生成对手失败，使用默认对手
+                    opponent = Pet("普通野怪", "普通")
                     opponent.level = pet.level
-                    # 调整对手属性
-                    opponent.update_stats()
-                elif "魔灵兔" in event_result:
-                    # 生成魔灵兔对手
-                    opponent = Pet("魔灵兔普通", "普通")
-                    # 设置对手等级为当前宠物等级
-                    opponent.level = pet.level
-                    # 调整对手属性
-                    opponent.update_stats()
-                elif "哥布林" in event_result:
-                    # 生成哥布林对手
-                    opponent_types = ["火", "水", "草", "电"]
-                    opponent_type = random.choice(opponent_types)
-                    opponent = Pet(f"哥布林{opponent_type}", opponent_type)
-                    
-                    # 设置对手等级为当前宠物等级-1级
-                    opponent.level = max(1, pet.level - 1)
-                    
-                    # 调整对手属性
-                    opponent.update_stats()
-                else:
-                    # 默认对手生成逻辑（邪恶训练师）
-                    opponent_types = ["火", "水", "草", "电"]
-                    opponent_type = random.choice(opponent_types)
-                    opponent = Pet(f"邪恶训练师{opponent_type}", opponent_type)
-                    
-                    # 设置对手等级为当前宠物等级±1级
-                    level_diff = random.randint(-1, 1)
-                    opponent.level = max(1, pet.level + level_diff)
-                    
-                    # 根据等级调整对手属性
                     opponent.update_stats()
                 
                 # 对战过程
@@ -1623,6 +1636,8 @@ class QQPetPlugin(Star):
             
             # 更新宠物状态
             pet.update_status()
+            # 更新宠物属性
+            pet.update_stats()
             
             # 生成宠物详细信息
             details = "您的宠物数值：\n"

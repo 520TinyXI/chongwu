@@ -112,11 +112,6 @@ class Pet:
         pet.auto_heal_threshold = data.get('auto_heal_threshold', 100)
         pet.critical_rate = data.get('critical_rate', 0.05)
         pet.critical_damage = data.get('critical_damage', 1.5)
-        
-        # 确保金刚的暴击属性正确设置
-        if pet.type == "金" and pet.name == "金刚":
-            pet.critical_rate = max(pet.critical_rate, 0.15)
-            pet.critical_damage = max(pet.critical_damage, 1.8)
         return pet
         
     def to_dict(self) -> Dict[str, Any]:
@@ -712,9 +707,9 @@ class PetDatabase:
 
             self.cursor.execute('''
                 INSERT INTO pet_data 
-                (user_id, pet_name, pet_type, skills, owner, critical_rate, critical_damage)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (user_id, pet_name, pet_type, json.dumps([]), owner, 0.05, 1.5))
+                (user_id, pet_name, pet_type, skills, owner)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (user_id, pet_name, pet_type, json.dumps([]), owner))
 
             self.conn.commit()
             return True
@@ -737,8 +732,7 @@ class PetDatabase:
             return None
 
         columns = ['user_id', 'pet_name', 'pet_type', 'owner', 'level', 'exp', 'hp', 'attack', 'defense', 'speed', 
-                  'hunger', 'mood', 'coins', 'skills', 'last_updated', 'last_battle_time', 'auto_heal_threshold',
-                  'critical_rate', 'critical_damage']
+                  'hunger', 'mood', 'coins', 'skills', 'last_updated', 'last_battle_time', 'auto_heal_threshold']
         data = dict(zip(columns, row))
 
         # 解析技能列表
