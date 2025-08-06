@@ -1027,23 +1027,45 @@ class QQPetPlugin(Star):
                     opponent.attack = 12 + opponent.level * 5
                     opponent.defense = 6 + opponent.level * 4
                     opponent.speed = 6 + opponent.level * 2
-                else:
-                    # 默认对手生成逻辑
-                    opponent_types = ["火", "水", "草", "电", "普通"]
-                    opponent_type = random.choice(opponent_types)
-                    opponent_names = ["邪恶训练师", "哥布林", "魔灵兔"]
-                    opponent_name = random.choice(opponent_names)
-                    opponent = Pet(f"{opponent_name}{opponent_type}", opponent_type)
-                    
-                    # 设置对手等级为当前宠物等级±2级
-                    level_diff = random.randint(-2, 2)
-                    opponent.level = max(1, pet.level + level_diff)
-                    
-                    # 根据等级调整对手属性
+                elif "魔灵兔" in event_result:
+                    # 生成魔灵兔对手
+                    opponent = Pet("魔灵兔普通", "普通")
+                    # 设置对手等级为当前宠物等级
+                    opponent.level = pet.level
+                    # 调整对手属性
                     opponent.hp = 80 + opponent.level * 20
                     opponent.attack = 8 + opponent.level * 5
                     opponent.defense = 3 + opponent.level * 3
                     opponent.speed = 8 + opponent.level * 2
+                elif "哥布林" in event_result:
+                    # 生成哥布林对手
+                    opponent_types = ["火", "水", "草", "电"]
+                    opponent_type = random.choice(opponent_types)
+                    opponent = Pet(f"哥布林{opponent_type}", opponent_type)
+                    
+                    # 设置对手等级为当前宠物等级-1级
+                    opponent.level = max(1, pet.level - 1)
+                    
+                    # 调整对手属性
+                    opponent.hp = 70 + opponent.level * 18
+                    opponent.attack = 7 + opponent.level * 4
+                    opponent.defense = 2 + opponent.level * 2
+                    opponent.speed = 7 + opponent.level * 2
+                else:
+                    # 默认对手生成逻辑（邪恶训练师）
+                    opponent_types = ["火", "水", "草", "电"]
+                    opponent_type = random.choice(opponent_types)
+                    opponent = Pet(f"邪恶训练师{opponent_type}", opponent_type)
+                    
+                    # 设置对手等级为当前宠物等级±1级
+                    level_diff = random.randint(-1, 1)
+                    opponent.level = max(1, pet.level + level_diff)
+                    
+                    # 根据等级调整对手属性
+                    opponent.hp = 85 + opponent.level * 21
+                    opponent.attack = 9 + opponent.level * 5
+                    opponent.defense = 4 + opponent.level * 3
+                    opponent.speed = 9 + opponent.level * 2
                 
                 # 对战过程
                 battle_log = f"{event_result.replace('【等级】', f'【{opponent.level}级】')}\n"
