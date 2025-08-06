@@ -81,7 +81,11 @@ class Pet:
         pet.hunger = data.get('hunger', 50)
         pet.mood = data.get('mood', 50)
         pet.coins = data.get('coins', 0)
-        pet.skills = data.get('skills', [])
+        # 解析技能列表
+        try:
+            pet.skills = json.loads(data.get('skills', '[]'))
+        except:
+            pet.skills = []
         pet.last_updated = datetime.fromisoformat(data.get('last_updated', datetime.now().isoformat()))
         last_battle_time_str = data.get('last_battle_time')
         if last_battle_time_str:
@@ -106,7 +110,7 @@ class Pet:
             'hunger': self.hunger,
             'mood': self.mood,
             'coins': self.coins,
-            'skills': self.skills,
+            'skills': json.dumps(self.skills),
             'last_updated': self.last_updated.isoformat(),
             'last_battle_time': self.last_battle_time.isoformat(),
             'auto_heal_threshold': self.auto_heal_threshold
