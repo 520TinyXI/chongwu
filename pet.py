@@ -433,10 +433,20 @@ class Pet:
         skills_str = "、".join(self.skills) if self.skills else "无"
         
         # 获取宠物的原始名称
-        original_name = self.name
+        original_names = {
+            "炽焰龙": "烈焰",
+            "瀚海蛟": "碧波兽",
+            "赤镰战甲": "藤甲虫",
+            "岩脊守护者": "碎裂岩",
+            "破甲战犀": "金刚"
+        }
+        original_name = original_names.get(self.name, self.name)
+        
+        # 显示格式：【主人取的名】【宠物原本的名字】
+        display_name = f"【{self.name}】【{original_name}】" if self.name != original_name else self.name
         
         return f"""主人：{self.owner}
-名称：{self.name} {original_name}
+名称：{display_name}
 属性：{self.type}
 战力值：{power}
 等级：{self.level}

@@ -883,7 +883,7 @@ class QQPetPlugin(Star):
                     damage = random.randint(10, 30)
                     pet.hp = max(1, pet.hp - damage)  # 至少保留1点生命值
                     
-                    opponent = Pet("地龙岩石", "地")
+                    opponent = Pet("地龙岩石", "土")
                     # 设置对手等级为当前宠物等级
                     opponent.level = pet.level
                     # 调整对手属性
@@ -897,7 +897,7 @@ class QQPetPlugin(Star):
                     opponent.update_stats()
                 elif "哥布林" in event_result:
                     # 生成哥布林对手
-                    opponent_types = ["火", "水", "草", "电"]
+                    opponent_types = ["火", "水", "草", "金"]
                     opponent_type = random.choice(opponent_types)
                     opponent = Pet(f"哥布林{opponent_type}", opponent_type)
                     
@@ -908,7 +908,7 @@ class QQPetPlugin(Star):
                     opponent.update_stats()
                 else:
                     # 默认对手生成逻辑（邪恶训练师）
-                    opponent_types = ["火", "水", "草", "电"]
+                    opponent_types = ["火", "水", "草", "金"]
                     opponent_type = random.choice(opponent_types)
                     opponent = Pet(f"邪恶训练师{opponent_type}", opponent_type)
                     
