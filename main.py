@@ -364,22 +364,6 @@ class QQPetPlugin(Star):
             logger.error(f"生成状态卡失败: {str(e)}")
             yield event.plain_result("生成状态卡失败了~请联系管理员检查日志")
 
-    # 宠物图标映射表
-    PET_ICONS = {
-        # 基础形态图标
-        "烈焰": "🔥",
-        "碧波兽": "💧",
-        "藤甲虫": "🪲",
-        "碎裂岩": "🪨",
-        "金刚": "⚔️",
-        # 进化形态图标
-        "炽焰龙": "🐲🔥",
-        "瀚海蛟": "🌊🐉",
-        "赤镰战甲": "🪳⚔️",
-        "岩脊守护者": "🏔️🛡️",
-        "破甲战犀": "🦏💥"
-    }
-    
     @filter.command("对决")
     async def duel_pet(self, event: AstrMessageEvent, opponent_id: str):
         """与其他玩家进行PVP对战"""
@@ -430,12 +414,8 @@ class QQPetPlugin(Star):
                 yield event.plain_result(f"{pet.name}还在冷却中，请30分钟后再进行对决！")
                 return
             
-            # 获取宠物图标
-            pet_icon = self.PET_ICONS.get(pet.name, "🐾")
-            opponent_icon = self.PET_ICONS.get(opponent_pet.name, "🐾")
-            
             # 对战过程
-            battle_log = f"{pet_icon}{pet.name}Lv{pet.level} 🆚 {opponent_icon}{opponent_pet.name}Lv{opponent_pet.level}\n" + "="*20 + "\n"
+            battle_log = f"{pet.name} vs {opponent_pet.name}\n" + "="*30 + "\n"
             
             # 决定先手（速度高者先攻，速度相同则随机）
             speed_diff = abs(pet.speed - opponent_pet.speed)
@@ -449,195 +429,144 @@ class QQPetPlugin(Star):
                 # 速度相同则随机决定先手
                 player_first = random.choice([True, False])
             
-            # 显示先手信息
-            if player_first:
-                battle_log += f"⚡{pet.name}先攻！(速{pet.speed})\n"
-            else:
-                battle_log += f"⚡{opponent_pet.name}先攻！(速{opponent_pet.speed})\n"
-            
-            # 添加分隔线
-            battle_log += "="*20 + "\n"
-            
-            round_count = 1
-            
             while pet.is_alive() and opponent_pet.is_alive():
-                battle_log += f"[{round_count}]"
-                
                 if player_first:
                     # 玩家攻击
                     # 30%概率使用技能
-                    skill_used = False
                     if random.random() < 0.3 and pet.skills:
                         skill = random.choice(pet.skills)
-                        skill_used = True
-                        if skill in ["火球术", "水枪术", "藤鞭", "地震", "金属爪"]:
+                        if skill == "火球术":
                             skill_multiplier = 1.2
-                            battle_log += f"{pet_icon}攻→{opponent_icon} "
-                        elif skill in ["烈焰风暴", "水龙卷", "飞叶快刀", "岩崩", "雷电拳"]:
+                            battle_log += f"{pet.name}使用了火球术！\n"
+                        elif skill == "水枪术":
+                            skill_multiplier = 1.2
+                            battle_log += f"{pet.name}使用了水枪术！\n"
+                        elif skill == "藤鞭":
+                            skill_multiplier = 1.2
+                            battle_log += f"{pet.name}使用了藤鞭！\n"
+                        elif skill == "地震":
+                            skill_multiplier = 1.2
+                            battle_log += f"{pet.name}使用了地震！\n"
+                        elif skill == "金属爪":
+                            skill_multiplier = 1.2
+                            battle_log += f"{pet.name}使用了金属爪！\n"
+                        elif skill == "烈焰风暴":
                             skill_multiplier = 1.5
-                            battle_log += f"{pet_icon}暴！💥 "
+                            battle_log += f"{pet.name}使用了烈焰风暴！\n"
+                        elif skill == "水龙卷":
+                            skill_multiplier = 1.5
+                            battle_log += f"{pet.name}使用了水龙卷！\n"
+                        elif skill == "飞叶快刀":
+                            skill_multiplier = 1.5
+                            battle_log += f"{pet.name}使用了飞叶快刀！\n"
+                        elif skill == "岩崩":
+                            skill_multiplier = 1.5
+                            battle_log += f"{pet.name}使用了岩崩！\n"
+                        elif skill == "雷电拳":
+                            skill_multiplier = 1.5
+                            battle_log += f"{pet.name}使用了雷电拳！\n"
                         else:
                             skill_multiplier = 1.0
                     else:
                         skill_multiplier = 1.0
-                        battle_log += f"{pet_icon}攻→{opponent_icon} "
                     
-                    # 计算伤害并检查是否暴击
-                    damage_result = pet.calculate_damage(opponent_pet, skill_multiplier)
-                    if isinstance(damage_result, tuple):
-                        damage, is_critical = damage_result
-                    else:
-                        damage, is_critical = damage_result, False
-                    
+                    damage = pet.calculate_damage(opponent_pet, skill_multiplier)
                     opponent_pet.hp = max(0, opponent_pet.hp - damage)
-                    
-                    # 显示伤害
-                    if is_critical:
-                        battle_log += f"💥{damage}!\n"
-                    else:
-                        battle_log += f"{damage}"
-                        if skill_used and skill_multiplier > 1.0:
-                            battle_log += "⚔️"
-                        battle_log += "\n"
-                    
-                    # 显示对手血量
-                    hp_percent = int((opponent_pet.hp / opponent_pet.max_hp) * 100)
-                    hp_bar = "█" * (hp_percent // 10) + "▏" * (hp_percent % 10 // 2)
-                    battle_log += f"{opponent_icon}HP:{opponent_pet.hp}/{opponent_pet.max_hp} {hp_bar}\n"
+                    battle_log += f"{pet.name}攻击{opponent_pet.name}，造成{damage}点伤害！\n"
                     
                     # 检查对手是否被击败
                     if not opponent_pet.is_alive():
-                        battle_log += f"{opponent_icon}☠️ {opponent_pet.hp}/{opponent_pet.max_hp}\n"
+                        battle_log += f"{opponent_pet.name}被击败了！\n"
                         break
                     
                     # 对手攻击
-                    skill_used = False
+                    # 30%概率使用技能
                     if random.random() < 0.3 and opponent_pet.skills:
                         skill = random.choice(opponent_pet.skills)
-                        skill_used = True
-                        if skill in ["火球术", "水枪术", "藤鞭", "地震", "金属爪"]:
+                        if skill == "火球术":
                             skill_multiplier = 1.2
-                            battle_log += f"[{round_count}]{opponent_icon}攻→{pet_icon} "
-                        elif skill in ["烈焰风暴", "水龙卷", "飞叶快刀", "岩崩", "雷电拳"]:
+                            battle_log += f"{opponent_pet.name}使用了火球术！\n"
+                        elif skill == "水枪术":
+                            skill_multiplier = 1.2
+                            battle_log += f"{opponent_pet.name}使用了水枪术！\n"
+                        elif skill == "藤鞭":
+                            skill_multiplier = 1.2
+                            battle_log += f"{opponent_pet.name}使用了藤鞭！\n"
+                        elif skill == "地震":
+                            skill_multiplier = 1.2
+                            battle_log += f"{opponent_pet.name}使用了地震！\n"
+                        elif skill == "金属爪":
+                            skill_multiplier = 1.2
+                            battle_log += f"{opponent_pet.name}使用了金属爪！\n"
+                        elif skill == "烈焰风暴":
                             skill_multiplier = 1.5
-                            battle_log += f"[{round_count}]{opponent_icon}暴！💥 "
+                            battle_log += f"{opponent_pet.name}使用了烈焰风暴！\n"
+                        elif skill == "水龙卷":
+                            skill_multiplier = 1.5
+                            battle_log += f"{opponent_pet.name}使用了水龙卷！\n"
+                        elif skill == "飞叶快刀":
+                            skill_multiplier = 1.5
+                            battle_log += f"{opponent_pet.name}使用了飞叶快刀！\n"
+                        elif skill == "岩崩":
+                            skill_multiplier = 1.5
+                            battle_log += f"{opponent_pet.name}使用了岩崩！\n"
+                        elif skill == "雷电拳":
+                            skill_multiplier = 1.5
+                            battle_log += f"{opponent_pet.name}使用了雷电拳！\n"
                         else:
                             skill_multiplier = 1.0
                     else:
                         skill_multiplier = 1.0
-                        battle_log += f"[{round_count}]{opponent_icon}攻→{pet_icon} "
                     
-                    # 计算伤害并检查是否暴击
-                    damage_result = opponent_pet.calculate_damage(pet, skill_multiplier)
-                    if isinstance(damage_result, tuple):
-                        damage, is_critical = damage_result
-                    else:
-                        damage, is_critical = damage_result, False
-                    
+                    damage = opponent_pet.calculate_damage(pet, skill_multiplier)
                     pet.hp = max(0, pet.hp - damage)
-                    
-                    # 显示伤害
-                    if is_critical:
-                        battle_log += f"💥{damage}!\n"
-                    else:
-                        battle_log += f"{damage}"
-                        if skill_used and skill_multiplier > 1.0:
-                            battle_log += "⚔️"
-                        battle_log += "\n"
-                    
-                    # 显示玩家血量
-                    hp_percent = int((pet.hp / pet.max_hp) * 100)
-                    hp_bar = "█" * (hp_percent // 10) + "▏" * (hp_percent % 10 // 2)
-                    battle_log += f"{pet_icon}HP:{pet.hp}/{pet.max_hp} {hp_bar}\n"
+                    battle_log += f"{opponent_pet.name}攻击{pet.name}，造成{damage}点伤害！\n"
                 else:
                     # 对手攻击
-                    skill_used = False
+                    # 30%概率使用技能
                     if random.random() < 0.3 and opponent_pet.skills:
                         skill = random.choice(opponent_pet.skills)
-                        skill_used = True
                         if skill in ["火球术", "水枪术", "藤鞭", "地震", "金属爪"]:
                             skill_multiplier = 1.2
-                            battle_log += f"{opponent_icon}攻→{pet_icon} "
+                            battle_log += f"{opponent_pet.name}使用了{skill}！\n"
                         elif skill in ["烈焰风暴", "水龙卷", "飞叶快刀", "岩崩", "雷电拳"]:
                             skill_multiplier = 1.5
-                            battle_log += f"{opponent_icon}暴！💥 "
+                            battle_log += f"{opponent_pet.name}使用了{skill}！\n"
                         else:
                             skill_multiplier = 1.0
                     else:
                         skill_multiplier = 1.0
-                        battle_log += f"{opponent_icon}攻→{pet_icon} "
                     
-                    # 计算伤害并检查是否暴击
-                    damage_result = opponent_pet.calculate_damage(pet, skill_multiplier)
-                    if isinstance(damage_result, tuple):
-                        damage, is_critical = damage_result
-                    else:
-                        damage, is_critical = damage_result, False
-                    
+                    damage = opponent_pet.calculate_damage(pet, skill_multiplier)
                     pet.hp = max(0, pet.hp - damage)
-                    
-                    # 显示伤害
-                    if is_critical:
-                        battle_log += f"💥{damage}!\n"
-                    else:
-                        battle_log += f"{damage}"
-                        if skill_used and skill_multiplier > 1.0:
-                            battle_log += "⚔️"
-                        battle_log += "\n"
-                    
-                    # 显示玩家血量
-                    hp_percent = int((pet.hp / pet.max_hp) * 100)
-                    hp_bar = "█" * (hp_percent // 10) + "▏" * (hp_percent % 10 // 2)
-                    battle_log += f"{pet_icon}HP:{pet.hp}/{pet.max_hp} {hp_bar}\n"
+                    battle_log += f"{opponent_pet.name}攻击{pet.name}，造成{damage}点伤害！\n"
                     
                     # 检查玩家是否被击败
                     if not pet.is_alive():
-                        battle_log += f"{pet_icon}☠️ {pet.hp}/{pet.max_hp}\n"
+                        battle_log += f"{pet.name}被击败了！\n"
                         break
                     
                     # 玩家攻击
-                    skill_used = False
+                    # 30%概率使用技能
                     if random.random() < 0.3 and pet.skills:
                         skill = random.choice(pet.skills)
-                        skill_used = True
                         if skill in ["火球术", "水枪术", "藤鞭", "地震", "金属爪"]:
                             skill_multiplier = 1.2
-                            battle_log += f"[{round_count}]{pet_icon}攻→{opponent_icon} "
+                            battle_log += f"{pet.name}使用了{skill}！\n"
                         elif skill in ["烈焰风暴", "水龙卷", "飞叶快刀", "岩崩", "雷电拳"]:
                             skill_multiplier = 1.5
-                            battle_log += f"[{round_count}]{pet_icon}暴！💥 "
+                            battle_log += f"{pet.name}使用了{skill}！\n"
                         else:
                             skill_multiplier = 1.0
                     else:
                         skill_multiplier = 1.0
-                        battle_log += f"[{round_count}]{pet_icon}攻→{opponent_icon} "
                     
-                    # 计算伤害并检查是否暴击
-                    damage_result = pet.calculate_damage(opponent_pet, skill_multiplier)
-                    if isinstance(damage_result, tuple):
-                        damage, is_critical = damage_result
-                    else:
-                        damage, is_critical = damage_result, False
-                    
+                    damage = pet.calculate_damage(opponent_pet, skill_multiplier)
                     opponent_pet.hp = max(0, opponent_pet.hp - damage)
-                    
-                    # 显示伤害
-                    if is_critical:
-                        battle_log += f"💥{damage}!\n"
-                    else:
-                        battle_log += f"{damage}"
-                        if skill_used and skill_multiplier > 1.0:
-                            battle_log += "⚔️"
-                        battle_log += "\n"
-                    
-                    # 显示对手血量
-                    hp_percent = int((opponent_pet.hp / opponent_pet.max_hp) * 100)
-                    hp_bar = "█" * (hp_percent // 10) + "▏" * (hp_percent % 10 // 2)
-                    battle_log += f"{opponent_icon}HP:{opponent_pet.hp}/{opponent_pet.max_hp} {hp_bar}\n"
+                    battle_log += f"{pet.name}攻击{opponent_pet.name}，造成{damage}点伤害！\n"
                 
                 # 添加分隔线
-                battle_log += "="*20 + "\n"
-                round_count += 1
+                battle_log += "-"*20 + "\n"
             
             # 更新对战时间
             pet.update_battle_time()
@@ -654,30 +583,12 @@ class QQPetPlugin(Star):
                     pet.level_up()
                     level_up = True
                 
-                battle_log += f"\n🔥{pet.name}胜利！"
-                battle_log += f"\n获得经验:{exp_gain} EXP"
+                battle_log += f"\n战斗胜利！{pet.name}获得了{exp_gain}点经验值！"
                 if level_up:
-                    battle_log += f"\n✨{pet.name}升级了！"
-                
-                # 显示玩家剩余血量
-                hp_percent = int((pet.hp / pet.max_hp) * 100)
-                hp_bar = "█" * (hp_percent // 10) + "▏" * (hp_percent % 10 // 2)
-                battle_log += f"\n剩余HP:{pet.hp}/{pet.max_hp} {hp_bar}"
-                
-                # 显示战斗回合数
-                battle_log += f"\n战绩:{round_count-1}回合"
+                    battle_log += f"\n{pet.name}升级了！"
             else:
                 # 玩家失败
-                battle_log += f"\n💀{pet.name}战败！"
-                battle_log += f"\n{opponent_icon}{opponent_pet.name}胜"
-                
-                # 显示对手剩余血量
-                hp_percent = int((opponent_pet.hp / opponent_pet.max_hp) * 100)
-                hp_bar = "█" * (hp_percent // 10) + "▏" * (hp_percent % 10 // 2)
-                battle_log += f"\n对手HP:{opponent_pet.hp}/{opponent_pet.max_hp} {hp_bar}"
-                
-                # 显示战斗回合数
-                battle_log += f"\n战绩:{round_count-1}回合"
+                battle_log += f"\n战斗失败！{pet.name}被击败了！"
                 
             # 更新数据库
             self.db.update_pet_data(
@@ -1008,18 +919,14 @@ class QQPetPlugin(Star):
                     # 根据等级调整对手属性
                     opponent.update_stats()
                 
-                # 获取宠物图标
-                pet_icon = PET_ICONS.get(pet.name, "🐾")
-                opponent_icon = PET_ICONS.get(opponent.name, "🐾")
-                
                 # 对战过程
                 battle_log = f"{event_result.replace('【等级】', f'【{opponent.level}级】')}\n"
-                battle_log += f"{pet_icon}{pet.name}Lv{pet.level} 🆚 {opponent_icon}{opponent.name}Lv{opponent.level}\n"
-                battle_log += f"{pet_icon}{pet.name}Lv{pet.level}基础数值：\n"
+                battle_log += f"{pet.name} vs {opponent.name}\n"
+                battle_log += f"{pet.name}基础数值：\n"
                 battle_log += f"HP={pet.hp},攻击={pet.attack}\n"
                 battle_log += f"防御={pet.defense},速度={pet.speed}\n"
                 battle_log += "--------------------\n"
-                battle_log += f"{opponent_icon}{opponent.name}Lv{opponent.level}基础数值：\n"
+                battle_log += f"{opponent.name}基础数值：\n"
                 battle_log += f"HP={opponent.hp},攻击={opponent.attack}\n"
                 battle_log += f"防御={opponent.defense},速度={opponent.speed}\n"
                 battle_log += "-------------------\n"
@@ -1031,27 +938,24 @@ class QQPetPlugin(Star):
                 if pet.speed > opponent.speed:
                     player_first = random.random() < (0.5 + speed_advantage)
                     if player_first:
-                        battle_log += f"⚡{pet.name}先攻！(速{pet.speed})\n"
+                        battle_log += f"{pet.name}速度占优！\n由{pet.name}率先攻击！\n"
                     else:
-                        battle_log += f"⚡{opponent.name}先攻！(速{opponent.speed})\n"
+                        battle_log += f"{opponent.name}逆袭了！\n由{opponent.name}率先攻击！\n"
                 elif pet.speed < opponent.speed:
                     player_first = random.random() >= (0.5 + speed_advantage)
                     if not player_first:
-                        battle_log += f"⚡{opponent.name}先攻！(速{opponent.speed})\n"
+                        battle_log += f"{opponent.name}速度占优！\n由{opponent.name}率先攻击！\n"
                     else:
-                        battle_log += f"⚡{pet.name}先攻！(速{pet.speed})\n"
+                        battle_log += f"{pet.name}逆袭了！\n由{pet.name}率先攻击！\n"
                 else:
                     # 速度相同则随机决定先手
                     player_first = random.choice([True, False])
                     if player_first:
-                        battle_log += f"⚡{pet.name}先攻！(速{pet.speed})\n"
+                        battle_log += f"双方速度相同！\n由{pet.name}率先攻击！\n"
                     else:
-                        battle_log += f"⚡{opponent.name}先攻！(速{opponent.speed})\n"
+                        battle_log += f"双方速度相同！\n由{opponent.name}率先攻击！\n"
                 
                 battle_log += "==============================\n"
-                
-                # 回合计数
-                round_count = 1
                 
                 # 战斗循环
                 while pet.is_alive() and opponent.is_alive():
@@ -1086,91 +990,101 @@ class QQPetPlugin(Star):
                             battle_log += f"{pet.name}使用了治疗瓶，本回合无法攻击！\n"
                             # 对手攻击
                             # 30%概率使用技能
-                            skill_used = False
                             if random.random() < 0.3 and opponent.skills:
                                 skill = random.choice(opponent.skills)
-                                skill_used = True
-                                if skill in ["火球术", "水枪术", "藤鞭", "地震", "金属爪"]:
+                                if skill == "火球术":
                                     skill_multiplier = 1.2
-                                    battle_log += f"[{round_count}]{opponent_icon}攻→{pet_icon} "
-                                elif skill in ["烈焰风暴", "水龙卷", "飞叶快刀", "岩崩", "雷电拳"]:
+                                    battle_log += f"{opponent.name}使用了火球术！\n"
+                                elif skill == "水枪术":
+                                    skill_multiplier = 1.2
+                                    battle_log += f"{opponent.name}使用了水枪术！\n"
+                                elif skill == "藤鞭":
+                                    skill_multiplier = 1.2
+                                    battle_log += f"{opponent.name}使用了藤鞭！\n"
+                                elif skill == "地震":
+                                    skill_multiplier = 1.2
+                                    battle_log += f"{opponent.name}使用了地震！\n"
+                                elif skill == "金属爪":
+                                    skill_multiplier = 1.2
+                                    battle_log += f"{opponent.name}使用了金属爪！\n"
+                                elif skill == "烈焰风暴":
                                     skill_multiplier = 1.5
-                                    battle_log += f"[{round_count}]{opponent_icon}暴！💥 "
+                                    battle_log += f"{opponent.name}使用了烈焰风暴！\n"
+                                elif skill == "水龙卷":
+                                    skill_multiplier = 1.5
+                                    battle_log += f"{opponent.name}使用了水龙卷！\n"
+                                elif skill == "飞叶快刀":
+                                    skill_multiplier = 1.5
+                                    battle_log += f"{opponent.name}使用了飞叶快刀！\n"
+                                elif skill == "岩崩":
+                                    skill_multiplier = 1.5
+                                    battle_log += f"{opponent.name}使用了岩崩！\n"
+                                elif skill == "雷电拳":
+                                    skill_multiplier = 1.5
+                                    battle_log += f"{opponent.name}使用了雷电拳！\n"
                                 else:
                                     skill_multiplier = 1.0
-                                    battle_log += f"[{round_count}]{opponent_icon}攻→{pet_icon} "
                             else:
                                 skill_multiplier = 1.0
-                                battle_log += f"[{round_count}]{opponent_icon}攻→{pet_icon} "
                             
-                            # 计算伤害并检查是否暴击
-                            damage_result = opponent.calculate_damage(pet, skill_multiplier)
-                            if isinstance(damage_result, tuple):
-                                damage, is_critical = damage_result
-                            else:
-                                damage, is_critical = damage_result, False
-                            
+                            damage_info = opponent.calculate_damage(pet, skill_multiplier)
+                            damage = damage_info["damage"]
                             pet.hp = max(0, pet.hp - damage)
-                            
-                            # 显示伤害
-                            if is_critical:
-                                battle_log += f"💥{damage}!\n"
+                            if damage_info["is_critical"]:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
                             else:
-                                battle_log += f"{damage}"
-                                if skill_used and skill_multiplier > 1.0:
-                                    battle_log += "⚔️"
-                                battle_log += "\n"
-                            
-                            # 显示玩家血量
-                            hp_percent = int((pet.hp / pet.max_hp) * 100)
-                            hp_bar = "█" * (hp_percent // 10) + "▏" * (hp_percent % 10 // 2)
-                            battle_log += f"{pet_icon}HP:{pet.hp}/{pet.max_hp} {hp_bar}\n"
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                         else:
                             # 玩家攻击
                             # 30%概率使用技能
-                            skill_used = False
                             if random.random() < 0.3 and pet.skills:
                                 skill = random.choice(pet.skills)
-                                skill_used = True
-                                if skill in ["火球术", "水枪术", "藤鞭", "地震", "金属爪"]:
+                                if skill == "火球术":
                                     skill_multiplier = 1.2
-                                    battle_log += f"[{round_count}]{pet_icon}攻→{opponent_icon} "
-                                elif skill in ["烈焰风暴", "水龙卷", "飞叶快刀", "岩崩", "雷电拳"]:
+                                    battle_log += f"{pet.name}使用了火球术！\n"
+                                elif skill == "水枪术":
+                                    skill_multiplier = 1.2
+                                    battle_log += f"{pet.name}使用了水枪术！\n"
+                                elif skill == "藤鞭":
+                                    skill_multiplier = 1.2
+                                    battle_log += f"{pet.name}使用了藤鞭！\n"
+                                elif skill == "地震":
+                                    skill_multiplier = 1.2
+                                    battle_log += f"{pet.name}使用了地震！\n"
+                                elif skill == "金属爪":
+                                    skill_multiplier = 1.2
+                                    battle_log += f"{pet.name}使用了金属爪！\n"
+                                elif skill == "烈焰风暴":
                                     skill_multiplier = 1.5
-                                    battle_log += f"[{round_count}]{pet_icon}暴！💥 "
+                                    battle_log += f"{pet.name}使用了烈焰风暴！\n"
+                                elif skill == "水龙卷":
+                                    skill_multiplier = 1.5
+                                    battle_log += f"{pet.name}使用了水龙卷！\n"
+                                elif skill == "飞叶快刀":
+                                    skill_multiplier = 1.5
+                                    battle_log += f"{pet.name}使用了飞叶快刀！\n"
+                                elif skill == "岩崩":
+                                    skill_multiplier = 1.5
+                                    battle_log += f"{pet.name}使用了岩崩！\n"
+                                elif skill == "雷电拳":
+                                    skill_multiplier = 1.5
+                                    battle_log += f"{pet.name}使用了雷电拳！\n"
                                 else:
                                     skill_multiplier = 1.0
-                                    battle_log += f"[{round_count}]{pet_icon}攻→{opponent_icon} "
                             else:
                                 skill_multiplier = 1.0
-                                battle_log += f"[{round_count}]{pet_icon}攻→{opponent_icon} "
                             
-                            # 计算伤害并检查是否暴击
-                            damage_result = pet.calculate_damage(opponent, skill_multiplier)
-                            if isinstance(damage_result, tuple):
-                                damage, is_critical = damage_result
-                            else:
-                                damage, is_critical = damage_result, False
-                            
+                            damage_info = pet.calculate_damage(opponent, skill_multiplier)
+                            damage = damage_info["damage"]
                             opponent.hp = max(0, opponent.hp - damage)
-                            
-                            # 显示伤害
-                            if is_critical:
-                                battle_log += f"💥{damage}!\n"
+                            if damage_info["is_critical"]:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
                             else:
-                                battle_log += f"{damage}"
-                                if skill_used and skill_multiplier > 1.0:
-                                    battle_log += "⚔️"
-                                battle_log += "\n"
-                            
-                            # 显示对手血量
-                            hp_percent = int((opponent.hp / opponent.max_hp) * 100)
-                            hp_bar = "█" * (hp_percent // 10) + "▏" * (hp_percent % 10 // 2)
-                            battle_log += f"{opponent_icon}HP:{opponent.hp}/{opponent.max_hp} {hp_bar}\n"
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
                             
                             # 检查对手是否被击败
                             if not opponent.is_alive():
-                                battle_log += f"{opponent_icon}☠️ {opponent.hp}/{opponent.max_hp}\n"
+                                battle_log += f"{opponent.name}被击败了！\n"
                                 break
                             
                             # 对手攻击
