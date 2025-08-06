@@ -478,9 +478,28 @@ class PetDatabase:
                 created_date TEXT DEFAULT CURRENT_TIMESTAMP,
                 last_updated TEXT DEFAULT CURRENT_TIMESTAMP,
                 last_battle_time TEXT DEFAULT CURRENT_TIMESTAMP,
-                auto_heal_threshold INTEGER DEFAULT 100
+                auto_heal_threshold INTEGER DEFAULT 100,
+                critical_rate REAL DEFAULT 0.05,
+                critical_damage REAL DEFAULT 1.5
             )
         ''')
+        
+        # 为已存在的记录添加默认的暴击属性值
+        try:
+            self.cursor.execute('ALTER TABLE pet_data ADD COLUMN critical_rate REAL DEFAULT 0.05')
+            print("已添加critical_rate字段")
+        except sqlite3.OperationalError as e:
+            # 列已存在，忽略错误
+            print(f"critical_rate字段已存在: {e}")
+            pass
+            
+        try:
+            self.cursor.execute('ALTER TABLE pet_data ADD COLUMN critical_damage REAL DEFAULT 1.5')
+            print("已添加critical_damage字段")
+        except sqlite3.OperationalError as e:
+            # 列已存在，忽略错误
+            print(f"critical_damage字段已存在: {e}")
+            pass
 
         # 创建商店物品表
         self.cursor.execute('''
@@ -697,7 +716,8 @@ class PetDatabase:
         """获取宠物数据"""
         self.cursor.execute('''
             SELECT user_id, pet_name, pet_type, owner, level, exp, hp, attack, defense, speed, 
-                   hunger, mood, coins, skills, last_updated, last_battle_time, auto_heal_threshold
+                   hunger, mood, coins, skills, last_updated, last_battle_time, auto_heal_threshold,
+                   critical_rate, critical_damage
             FROM pet_data 
             WHERE user_id = ?
         ''', (user_id,))
