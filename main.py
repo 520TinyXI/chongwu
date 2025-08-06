@@ -162,7 +162,7 @@ class PetImageGenerator:
 logger = logging.getLogger(__name__)
 
 
-@register("宠物", "Tinyxi", "一个QQ宠物插件，包含创建宠物、喂养、训练、对战等功能", "1.0.0", "https://github.com/520TinyXI/chongwu.git")
+@register("宠物", "Tinyxi", "一个QQ宠物插件，包含创建宠物、喂养、对战等功能", "1.0.0", "https://github.com/520TinyXI/chongwu.git")
 class QQPetPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -623,7 +623,6 @@ class QQPetPlugin(Star):
 
 /领养宠物 [名称] - 领养一只宠物，可指定名称
 /我的宠物 - 查看宠物状态卡
-/训练宠物 - 训练宠物获得经验
 /宠物进化 - 当宠物达到指定等级后进化
 /宠物对战 - 与野生宠物对战
 /对决 @某人 - 与其他玩家进行PVP对战（每30分钟冷却）
@@ -674,42 +673,6 @@ class QQPetPlugin(Star):
         except Exception as e:
             logger.error(f"查看宠物失败: {str(e)}")
             yield event.plain_result("查看宠物失败了~请联系管理员检查日志")
-    
-    @filter.command("训练宠物")
-    async def train_pet(self, event: AstrMessageEvent):
-        """训练宠物"""
-        try:
-            user_id = event.get_sender_id()
-            
-            # 检查是否有宠物
-            if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
-                return
-            
-            pet = self.pets[user_id]
-            
-            # 训练宠物
-            result = pet.train()
-            
-            # 更新数据库
-            self.db.update_pet_data(
-                user_id,
-                level=pet.level,
-                exp=pet.exp,
-                hp=pet.hp,
-                attack=pet.attack,
-                defense=pet.defense,
-                speed=pet.speed,
-                hunger=pet.hunger,
-                mood=pet.mood,
-                skills=pet.skills
-            )
-            
-            yield event.plain_result(result)
-            
-        except Exception as e:
-            logger.error(f"训练宠物失败: {str(e)}")
-            yield event.plain_result("训练宠物失败了~请联系管理员检查日志")
     
     @filter.command("宠物对战")
     async def battle_pet(self, event: AstrMessageEvent):
@@ -923,9 +886,13 @@ class QQPetPlugin(Star):
                         else:
                             skill_multiplier = 1.0
                         
-                        damage = opponent.calculate_damage(pet, skill_multiplier)
+                        damage_info = opponent.calculate_damage(pet, skill_multiplier)
+                        damage = damage_info["damage"]
                         pet.hp = max(0, pet.hp - damage)
-                        battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                        if damage_info["is_critical"]:
+                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                        else:
+                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                     else:
                         # 对手攻击
                         damage_info = opponent.calculate_damage(pet)
@@ -960,9 +927,13 @@ class QQPetPlugin(Star):
                             opponent.hp = max(0, opponent.hp - damage)
                             battle_log += f"{pet.name}使用技能{skill_used}攻击{opponent.name}，造成{damage}点伤害！\n"
                         else:
-                            damage = pet.calculate_damage(opponent, skill_multiplier)
+                            damage_info = pet.calculate_damage(opponent, skill_multiplier)
+                            damage = damage_info["damage"]
                             opponent.hp = max(0, opponent.hp - damage)
-                            battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                            if damage_info["is_critical"]:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
                 
                 # 添加生命值信息
                 battle_log += f"{pet.name}剩余生命值={pet.hp}\n"
@@ -1421,9 +1392,13 @@ class QQPetPlugin(Star):
                             else:
                                 skill_multiplier = 1.0
                             
-                            damage = pet.calculate_damage(opponent, skill_multiplier)
+                            damage_info = pet.calculate_damage(opponent, skill_multiplier)
+                            damage = damage_info["damage"]
                             opponent.hp = max(0, opponent.hp - damage)
-                            battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                            if damage_info["is_critical"]:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
                             
                             # 检查对手是否被击败
                             if not opponent.is_alive():
@@ -1469,9 +1444,13 @@ class QQPetPlugin(Star):
                             else:
                                 skill_multiplier = 1.0
                             
-                            damage = opponent.calculate_damage(pet, skill_multiplier)
+                            damage_info = opponent.calculate_damage(pet, skill_multiplier)
+                            damage = damage_info["damage"]
                             pet.hp = max(0, pet.hp - damage)
-                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                            if damage_info["is_critical"]:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                     else:
                         # 如果使用了治疗瓶，玩家本回合无法攻击
                         if used_heal_bottle:
@@ -1491,14 +1470,22 @@ class QQPetPlugin(Star):
                             else:
                                 skill_multiplier = 1.0
                             
-                            damage = opponent.calculate_damage(pet, skill_multiplier)
+                            damage_info = opponent.calculate_damage(pet, skill_multiplier)
+                            damage = damage_info["damage"]
                             pet.hp = max(0, pet.hp - damage)
-                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                            if damage_info["is_critical"]:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                         else:
                             # 对手攻击
-                            damage = opponent.calculate_damage(pet)
+                            damage_info = opponent.calculate_damage(pet)
+                            damage = damage_info["damage"]
                             pet.hp = max(0, pet.hp - damage)
-                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                            if damage_info["is_critical"]:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                             
                             # 检查玩家是否被击败
                             if not pet.is_alive():
@@ -1544,9 +1531,13 @@ class QQPetPlugin(Star):
                             else:
                                 skill_multiplier = 1.0
                             
-                            damage = pet.calculate_damage(opponent, skill_multiplier)
+                            damage_info = pet.calculate_damage(opponent, skill_multiplier)
+                            damage = damage_info["damage"]
                             opponent.hp = max(0, opponent.hp - damage)
-                            battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                            if damage_info["is_critical"]:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
                     
                     # 添加生命值信息
                     battle_log += f"{pet.name}剩余生命值={pet.hp}\n"

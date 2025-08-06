@@ -147,49 +147,6 @@ class Pet:
             
             self.last_updated = now
             
-    def train(self) -> str:
-        """训练宠物"""
-        # 检查饥饿度和心情
-        if self.hunger <= 10:
-            return f"{self.name}太饿了，无法训练！"
-        if self.mood <= 10:
-            return f"{self.name}心情不好，无法训练！"
-            
-        # 消耗饥饿度和心情
-        self.hunger = max(0, self.hunger - 10)
-        self.mood = max(0, self.mood - 5)
-        
-        # 增加经验值
-        exp_gain = random.randint(10, 30)
-        self.exp += exp_gain
-        
-        # 检查是否升级
-        level_up = False
-        if self.exp >= self.level * 100:
-            self.level_up()
-            level_up = True
-            
-        # 更新属性
-        self.update_stats()
-        
-        result = f"{self.name}训练成功，获得了{exp_gain}点经验值！"
-        if level_up:
-            result += f"\n{self.name}升级了！"
-            
-        return result
-        
-    def level_up(self):
-        """宠物升级"""
-        while self.exp >= self.level * 100:
-            self.exp -= self.level * 100
-            self.level += 1
-
-            # 升级时学习新技能
-            if self.level % 5 == 0:
-                new_skill = self.learn_new_skill()
-                if new_skill:
-                    self.skills.append(new_skill)
-                    
     def update_stats(self):
         """更新宠物属性"""
         # 根据宠物类型和等级计算属性
@@ -259,11 +216,30 @@ class Pet:
                 level_diff = self.level - 1
                 self.critical_rate = 0.15 + level_diff * 0.002
                 self.critical_damage = 1.65 + level_diff * 0.003
-            elif self.name == "破甲战犀":
-                # 每级暴击率+0.3%、暴伤+0.4%
-                level_diff = self.level - 1  # 从1级开始计算
-                self.critical_rate = 0.25 + level_diff * 0.003
-                self.critical_damage = 1.8 + level_diff * 0.004
+            # 设置基础暴击属性
+            if self.level == 1:
+                if self.name == "金刚":
+                    self.critical_rate = 0.15  # 15%暴击率
+                    self.critical_damage = 1.65  # 165%暴击伤害
+                elif self.name == "破甲战犀":
+                    self.critical_rate = 0.25  # 25%暴击率
+                    self.critical_damage = 1.8   # 180%暴击伤害
+                else:
+                    self.critical_rate = 0.05  # 5%暴击率
+                    self.critical_damage = 1.5  # 150%暴击伤害
+            else:
+                # 根据等级计算暴击属性
+                level_diff = self.level - 1
+                if self.name == "金刚":
+                    self.critical_rate = 0.15 + level_diff * 0.002
+                    self.critical_damage = 1.65 + level_diff * 0.003
+                elif self.name == "破甲战犀":
+                    self.critical_rate = 0.25 + level_diff * 0.003
+                    self.critical_damage = 1.8 + level_diff * 0.004
+                else:
+                    # 其他非金属性宠物保持基础暴击属性
+                    self.critical_rate = 0.05
+                    self.critical_damage = 1.5
                 
     def is_alive(self) -> bool:
         """检查宠物是否存活"""
@@ -418,6 +394,23 @@ class Pet:
     def update_battle_time(self):
         """更新最后对战时间"""
         self.last_battle_time = datetime.now()
+
+    def level_up(self):
+        """升级处理"""
+        self.level += 1
+        self.exp = 0  # 重置经验值
+        self.update_stats()  # 更新属性
+        
+        # 学习新技能
+        new_skill = self.learn_new_skill()
+        if new_skill:
+            self.skills.append(new_skill)
+        
+        # 进化检查
+        if self.can_evolve():
+            return self.evolve()
+        
+        return f"{self.name}升级到{self.level}级！"
 
     def __str__(self) -> str:
         """返回宠物的详细信息"""
