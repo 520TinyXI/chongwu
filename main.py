@@ -194,9 +194,9 @@ class QQPetPlugin(Star):
             if pet_data:
                 self.pets[user_id] = Pet.from_dict(pet_data)
     
-    @filter.command("领养宠物")
-    async def adopt_pet(self, event: AstrMessageEvent, pet_name: str = None):
-        """领养宠物"""
+    @filter.command("领取宠物")
+    async def adopt_pet(self, event: AstrMessageEvent, pet_type: str = None, pet_name: str = None):
+        """领取宠物"""
         try:
             # 处理可能缺失的参数
             if event is None:
@@ -216,11 +216,11 @@ class QQPetPlugin(Star):
                 event = MockEvent()
             
             user_id = event.get_sender_id()
-            logger.info(f"用户 {user_id} 请求领养宠物")
+            logger.info(f"用户 {user_id} 请求领取宠物")
             
             # 双重检查是否已领养宠物
             if user_id in self.pets or self.db.get_pet_data(user_id):
-                yield event.plain_result("您已经领养了宠物！")
+                yield event.plain_result("您已经领取了宠物！")
                 return
             
             # 预设宠物名称和类型
@@ -235,18 +235,23 @@ class QQPetPlugin(Star):
             # 获取发送者名称
             sender_name = event.get_sender_name() or "未知"
             
-            if pet_name:
+            if pet_type and pet_name:
+                # 检查属性是否有效
+                valid_types = ["火", "水", "草", "土", "金"]
+                if pet_type not in valid_types:
+                    yield event.plain_result(f"无效的属性！请选择：{', '.join(valid_types)}")
+                    return
+                
                 # 检查是否是预设名称
-                matched_pet = next((p for p in pet_options if p["name"] == pet_name), None)
+                matched_pet = next((p for p in pet_options if p["name"] == pet_name and p["type"] == pet_type), None)
                 if matched_pet:
                     pet = Pet(matched_pet["name"], matched_pet["type"], sender_name)
                 else:
-                    # 自定义名称，随机类型
-                    random_pet = random.choice(pet_options)
-                    pet = Pet(pet_name, random_pet["type"], sender_name)
+                    # 自定义名称
+                    pet = Pet(pet_name, pet_type, sender_name)
             else:
-                # 如果没有提供名称，提示正确的指令格式
-                yield event.plain_result("正确的领养指令：/领养宠物 【名字】")
+                # 如果没有提供属性和名称，提示正确的指令格式
+                yield event.plain_result("正确的领取指令：/领取宠物 属性 名字\n属性可选：火、水、草、土、金")
                 return
             
             self.pets[user_id] = pet
@@ -256,7 +261,7 @@ class QQPetPlugin(Star):
             self.db.update_pet_data(user_id, **pet.to_dict())
             
             # 生成结果信息
-            result = f"成功领养宠物！！！\n名称：{pet.name}\n属性：{pet.type}\n等级：{pet.level}\n经验值：{pet.exp}/{pet.level * 100}\n数值：\nHP={pet.hp},攻击={pet.attack}\n防御={pet.defense},速度={pet.speed}\n技能：无"
+            result = f"成功领取宠物！！！\n名称：{pet.name}\n属性：{pet.type}\n等级：{pet.level}\n经验值：{pet.exp}/{pet.level * 100}\n数值：\nHP={pet.hp},攻击={pet.attack}\n防御={pet.defense},速度={pet.speed}\n技能：无"
             
             # 尝试生成图片
             try:
@@ -275,8 +280,8 @@ class QQPetPlugin(Star):
                 yield event.plain_result(result)
             
         except Exception as e:
-            logger.error(f"领养宠物失败: {str(e)}")
-            yield event.plain_result(f"领养宠物失败了~错误原因: {str(e)}")
+            logger.error(f"领取宠物失败: {str(e)}")
+            yield event.plain_result(f"领取宠物失败了~错误原因: {str(e)}")
 
     @filter.command("宠物进化")
     async def evolve_pet(self, event: AstrMessageEvent):
@@ -286,7 +291,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有领养宠物！请先使用'领养宠物'命令")
+                yield event.plain_result("您还没有领取宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -375,12 +380,12 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有领养宠物！请先使用'领养宠物'命令")
+                yield event.plain_result("您还没有领取宠物！请先使用'领取宠物'命令")
                 return
             
             # 检查对手是否存在宠物
             if opponent_id not in self.pets and not self.db.get_pet_data(opponent_id):
-                yield event.plain_result(f"对手{opponent_id}还没有领养宠物！")
+                yield event.plain_result(f"对手{opponent_id}还没有领取宠物！")
                 return
             
             # 加载对手宠物
