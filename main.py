@@ -292,8 +292,13 @@ class QQPetPlugin(Star):
             )
             
             # 生成进化结果图片
-            # 直接返回纯文字结果，不生成图片
-            yield event.plain_result(result)
+            image_path = await self.img_gen.create_pet_image(result, pet.type)
+            if image_path:
+                yield event.image_result(image_path)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+            else:
+                yield event.plain_result(result)
             
         except Exception as e:
             logger.error(f"宠物进化失败: {str(e)}")
@@ -383,15 +388,7 @@ class QQPetPlugin(Star):
                 return
             
             # 对战过程
-            battle_log = f"{pet.name} vs {opponent_pet.name}\n"
-            battle_log += f"\u200b{pet.name}基础数值：\n"
-            battle_log += f"HP={pet.hp},攻击={pet.attack}\n"
-            battle_log += f"防御={pet.defense},速度={pet.speed}\n"
-            battle_log += "--------------------\n"
-            battle_log += f"{opponent_pet.name}基础数值：\n"
-            battle_log += f"HP={opponent_pet.hp},攻击={opponent_pet.attack}\n"
-            battle_log += f"防御={opponent_pet.defense},速度={opponent_pet.speed}\n"
-            battle_log += "==============================\n"
+            battle_log = f"{pet.name} vs {opponent_pet.name}\n" + "="*30 + "\n"
             
             # 决定先手
             player_first = pet.speed >= opponent_pet.speed
@@ -429,7 +426,7 @@ class QQPetPlugin(Star):
                     battle_log += f"{pet.name}攻击{opponent_pet.name}，造成{damage}点伤害！\n"
                 
                 # 添加分隔线
-                battle_log += "--------------------\n"
+                battle_log += "-"*20 + "\n"
             
             # 更新对战时间
             pet.update_battle_time()
@@ -524,15 +521,9 @@ class QQPetPlugin(Star):
             # 保存到数据库
             self.db.update_pet_data(user_id, **pet.to_dict())
             
-            # 生成状态卡图片
+            # 直接返回纯文字结果，不生成图片
             result = str(pet)
-            image_path = await self.img_gen.create_pet_image(result, pet.type)
-            if image_path:
-                yield event.image_result(image_path)
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-            else:
-                yield event.plain_result(result)
+            yield event.plain_result(result)
             
         except Exception as e:
             logger.error(f"查看宠物失败: {str(e)}")
@@ -609,19 +600,41 @@ class QQPetPlugin(Star):
             opponent.speed = 8 + opponent.level * 2
             
             # 对战过程
-            battle_log = f"{pet.name} vs {opponent.name}\n"
-            battle_log += f"\u200b{pet.name}基础数值：\n"
+            # 按照用户要求的格式生成战斗日志
+            battle_log = f"{pet.name} vs {opponent.name}【{opponent.level}级】\n"
+            battle_log += f"{pet.name}基础数值：\n"
             battle_log += f"HP={pet.hp},攻击={pet.attack}\n"
             battle_log += f"防御={pet.defense},速度={pet.speed}\n"
             battle_log += "--------------------\n"
             battle_log += f"{opponent.name}基础数值：\n"
             battle_log += f"HP={opponent.hp},攻击={opponent.attack}\n"
             battle_log += f"防御={opponent.defense},速度={opponent.speed}\n"
-            battle_log += "==============================\n"
+            battle_log += "-------------------\n"
             
             # 决定先手
-            player_first = pet.speed >= opponent.speed
+            if pet.speed > opponent.speed:
+                battle_log += f"{pet.name}速度最快！\n由{pet.name}率先攻击！\n"
+                player_first = True
+            elif opponent.speed > pet.speed:
+                battle_log += f"{opponent.name}速度最快！\n由{opponent.name}率先攻击！\n"
+                player_first = False
+            else:
+                # 速度相同，投骰子决定先后
+                battle_log += "双方速度相同，将投骰子决定先后！\n"
+                player_roll = random.randint(1, 6)
+                opponent_roll = random.randint(1, 6)
+                battle_log += f"{pet.name}：{player_roll}点\n"
+                battle_log += f"{opponent.name}：{opponent_roll}点\n"
+                if player_roll >= opponent_roll:
+                    battle_log += f"{pet.name}点数最高！\n将由{pet.name}先行攻击！\n"
+                    player_first = True
+                else:
+                    battle_log += f"{opponent.name}点数最高！\n将由{opponent.name}先行攻击！\n"
+                    player_first = False
             
+            battle_log += "==============================\n"
+            
+            # 战斗循环
             while pet.is_alive() and opponent.is_alive():
                 if player_first:
                     # 玩家攻击
@@ -654,7 +667,9 @@ class QQPetPlugin(Star):
                     opponent.hp = max(0, opponent.hp - damage)
                     battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
                 
-                # 添加分隔线
+                # 添加生命值信息
+                battle_log += f"{pet.name}剩余生命值={pet.hp}\n"
+                battle_log += f"{opponent.name}剩余生命值={opponent.hp}\n"
                 battle_log += "--------------------\n"
             
             # 战斗结果
@@ -681,7 +696,8 @@ class QQPetPlugin(Star):
                     skills=pet.skills
                 )
                 
-                battle_log += f"\n战斗胜利！{pet.name}获得了{exp_gain}点经验值！"
+                battle_log += f"\n战斗胜利！{pet.name}剩余生命值={pet.hp}\n"
+                battle_log += f"战斗胜利！{pet.name}获得了{exp_gain}点经验值！"
                 if level_up:
                     battle_log += f"\n{pet.name}升级了！"
             else:
@@ -725,13 +741,8 @@ class QQPetPlugin(Star):
                 mood=pet.mood
             )
             
-            image_path = await self.img_gen.create_pet_image(result, pet.type)
-            if image_path:
-                yield event.image_result(image_path)
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-            else:
-                yield event.plain_result(result)
+            # 直接返回纯文字结果，不生成图片
+            yield event.plain_result(result)
             
         except Exception as e:
             logger.error(f"治疗宠物失败: {str(e)}")
