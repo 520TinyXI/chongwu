@@ -656,7 +656,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -683,7 +683,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -720,7 +720,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -1101,7 +1101,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -1618,7 +1618,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -1663,7 +1663,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -1705,7 +1705,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -1734,7 +1734,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -1810,7 +1810,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -1855,7 +1855,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -1881,7 +1881,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -1907,7 +1907,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -1943,7 +1943,7 @@ class QQPetPlugin(Star):
             
             # 检查是否有宠物
             if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'/领养宠物'命令")
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
                 return
             
             pet = self.pets[user_id]
@@ -1960,8 +1960,8 @@ class QQPetPlugin(Star):
             details += f"攻击力：{pet.attack}\n"
             details += f"防御力：{pet.defense}\n"
             details += f"速度：{pet.speed}\n"
-            details += "暴击率：\n"
-            details += "暴击伤害：\n"
+            details += f"暴击率：{pet.critical_rate:.1%}\n"
+            details += f"暴击伤害：{pet.critical_damage:.0%}\n"
             details += f"技能：{', '.join(pet.skills) if pet.skills else '无'}"
             
             # 更新数据库
