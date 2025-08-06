@@ -309,7 +309,8 @@ class PetDatabase:
                 skills TEXT DEFAULT '[]',
                 created_date TEXT DEFAULT CURRENT_TIMESTAMP,
                 last_updated TEXT DEFAULT CURRENT_TIMESTAMP,
-                last_battle_time TEXT DEFAULT CURRENT_TIMESTAMP
+                last_battle_time TEXT DEFAULT CURRENT_TIMESTAMP,
+                auto_heal_threshold INTEGER DEFAULT 100
             )
         ''')
 

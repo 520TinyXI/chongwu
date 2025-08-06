@@ -1287,26 +1287,6 @@ class QQPetPlugin(Star):
             logger.error(f"投喂宠物失败: {str(e)}")
             yield event.plain_result("投喂宠物失败了~请联系管理员检查日志")
     
-    @filter.command("查看金币")
-    async def check_coins(self, event: AstrMessageEvent):
-        """查看玩家金币数量"""
-        try:
-            user_id = event.get_sender_id()
-            
-            # 检查是否有宠物
-            if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
-                return
-            
-            pet = self.pets[user_id]
-            
-            # 返回金币数量
-            yield event.plain_result(f"您的金币数量：{pet.coins}")
-            
-        except Exception as e:
-            logger.error(f"查看金币失败: {str(e)}")
-            yield event.plain_result("查看金币失败了~请联系管理员检查日志")
-    
     @filter.command("查看技能")
     async def check_skills(self, event: AstrMessageEvent):
         """查看宠物技能"""
@@ -1471,7 +1451,7 @@ class QQPetPlugin(Star):
             pet = self.pets[user_id]
             
             # 返回战斗设置
-            settings = f"战斗设置排版：\n战斗中低于【{pet.auto_heal_threshold}血】自动使用治疗瓶\n提示：如需修改数值，输入/修改最低血量 [数值]。如果不使用治疗瓶填入0即可！"
+            settings = f"战斗中血量低于【{pet.auto_heal_threshold}】自动使用治疗瓶\n提示：如需修改数值，输入/修改最低血量 [数值]。如果不使用治疗瓶填入0即可"
             yield event.plain_result(settings)
             
         except Exception as e:
@@ -1508,4 +1488,40 @@ class QQPetPlugin(Star):
         except Exception as e:
             logger.error(f"修改最低血量失败: {str(e)}")
             yield event.plain_result("修改最低血量失败了~请联系管理员检查日志")
+    
+    @filter.command("宠物背包")
+    async def pet_inventory(self, event: AstrMessageEvent):
+        """查看宠物背包"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 获取用户背包物品
+            inventory = self.db.get_user_inventory(user_id)
+            
+            # 生成背包信息
+            result = "您的背包\n"
+            result += "--------------------\n"
+            result += "代币背包\n"
+            result += f"金币数量：{pet.coins}\n"
+            result += "--------------------\n"
+            result += "物品背包\n"
+            
+            if inventory:
+                for item in inventory:
+                    result += f"{item['name']} x{item['quantity']}\n"
+            else:
+                result += "您的物品背包空空如也"
+            
+            yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"查看宠物背包失败: {str(e)}")
+            yield event.plain_result("查看宠物背包失败了~请联系管理员检查日志")
 
