@@ -851,9 +851,13 @@ class QQPetPlugin(Star):
                         else:
                             skill_multiplier = 1.0
                         
-                        damage = opponent.calculate_damage(pet, skill_multiplier)
+                        damage_info = opponent.calculate_damage(pet, skill_multiplier)
+                        damage = damage_info["damage"]
                         pet.hp = max(0, pet.hp - damage)
-                        battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                        if damage_info["is_critical"]:
+                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                        else:
+                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                     else:
                         # 玩家攻击
                         # 检查是否可以使用技能
@@ -874,9 +878,13 @@ class QQPetPlugin(Star):
                             opponent.hp = max(0, opponent.hp - damage)
                             battle_log += f"{pet.name}使用技能{skill_used}攻击{opponent.name}，造成{damage}点伤害！\n"
                         else:
-                            damage = pet.calculate_damage(opponent, skill_multiplier)
+                            damage_info = pet.calculate_damage(opponent, skill_multiplier)
+                            damage = damage_info["damage"]
                             opponent.hp = max(0, opponent.hp - damage)
-                            battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                            if damage_info["is_critical"]:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
                         
                         # 检查对手是否被击败
                         if not opponent.is_alive():
@@ -884,9 +892,13 @@ class QQPetPlugin(Star):
                             break
                         
                         # 对手攻击
-                        damage = opponent.calculate_damage(pet, 1.0)
+                        damage_info = opponent.calculate_damage(pet, 1.0)
+                        damage = damage_info["damage"]
                         pet.hp = max(0, pet.hp - damage)
-                        battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                        if damage_info["is_critical"]:
+                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                        else:
+                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                 else:
                     # 如果使用了治疗瓶，玩家本回合无法攻击
                     if used_heal_bottle:
@@ -911,9 +923,13 @@ class QQPetPlugin(Star):
                         battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                     else:
                         # 对手攻击
-                        damage = opponent.calculate_damage(pet)
+                        damage_info = opponent.calculate_damage(pet)
+                        damage = damage_info["damage"]
                         pet.hp = max(0, pet.hp - damage)
-                        battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                        if damage_info["is_critical"]:
+                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                        else:
+                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                         
                         # 检查玩家是否被击败
                         if not pet.is_alive():
@@ -1353,9 +1369,13 @@ class QQPetPlugin(Star):
                             else:
                                 skill_multiplier = 1.0
                             
-                            damage = opponent.calculate_damage(pet, skill_multiplier)
+                            damage_info = opponent.calculate_damage(pet, skill_multiplier)
+                            damage = damage_info["damage"]
                             pet.hp = max(0, pet.hp - damage)
-                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                            if damage_info["is_critical"]:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                         else:
                             # 玩家攻击
                             # 30%概率使用技能

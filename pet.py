@@ -68,6 +68,19 @@ class Pet:
         self.last_battle_time = datetime.now() - timedelta(hours=1)  # 初始设置为1小时前
         self.auto_heal_threshold = 100  # 自动使用治疗瓶的最低血量阈值
         
+        # 暴击属性
+        self.critical_rate = 0.05  # 基础暴击率
+        self.critical_damage = 1.5  # 基础暴击伤害
+        
+        # 金属性专属暴击属性
+        if self.type == "金":
+            if self.name == "金刚":
+                self.critical_rate = 0.15  # 15%暴击率
+                self.critical_damage = 1.65  # 165%暴击伤害
+            elif self.name == "破甲战犀":
+                self.critical_rate = 0.25  # 25%暴击率
+                self.critical_damage = 1.8  # 180%暴击伤害
+        
     @classmethod
     def from_dict(cls, data: Dict[str, Any]):
         """从字典创建Pet实例"""
@@ -93,6 +106,8 @@ class Pet:
         else:
             pet.last_battle_time = datetime.now() - timedelta(hours=1)
         pet.auto_heal_threshold = data.get('auto_heal_threshold', 100)
+        pet.critical_rate = data.get('critical_rate', 0.05)
+        pet.critical_damage = data.get('critical_damage', 1.5)
         return pet
         
     def to_dict(self) -> Dict[str, Any]:
@@ -113,7 +128,9 @@ class Pet:
             'skills': json.dumps(self.skills),
             'last_updated': self.last_updated.isoformat(),
             'last_battle_time': self.last_battle_time.isoformat(),
-            'auto_heal_threshold': self.auto_heal_threshold
+            'auto_heal_threshold': self.auto_heal_threshold,
+            'critical_rate': self.critical_rate,
+            'critical_damage': self.critical_damage
         }
         
     def update_status(self):
@@ -234,14 +251,27 @@ class Pet:
             self.attack = int(base["attack"] + level_diff * growth["attack"])
             self.defense = int(base["defense"] + level_diff * growth["defense"])
             self.speed = int(base["speed"] + level_diff * growth["speed"])
+        
+        # 金属性宠物暴击属性成长
+        if self.type == "金":
+            if self.name == "金刚":
+                # 每级暴击率+0.2%、暴伤+0.3%
+                level_diff = self.level - 1
+                self.critical_rate = 0.15 + level_diff * 0.002
+                self.critical_damage = 1.65 + level_diff * 0.003
+            elif self.name == "破甲战犀":
+                # 每级暴击率+0.3%、暴伤+0.4%
+                level_diff = self.level - 1  # 从1级开始计算
+                self.critical_rate = 0.25 + level_diff * 0.003
+                self.critical_damage = 1.8 + level_diff * 0.004
                 
     def is_alive(self) -> bool:
         """检查宠物是否存活"""
         return self.hp > 0
         
-    def calculate_damage(self, opponent, skill_multiplier: float = 1.0) -> int:
+    def calculate_damage(self, opponent, skill_multiplier: float = 1.0) -> dict:
         """计算伤害，考虑属性克制、技能系数、暴击等"""
-        # 基础伤害计算：伤害 = (攻击力 × 技能系数 - 防御力 × 0.3) × 克制系数 × 暴击系数
+        # 基础伤害计算：伤害 = (攻击力 × 技能系数 - 防御力 × 0.3) × 克制系数
         base_damage = self.attack * skill_multiplier - opponent.defense * 0.3
         damage = max(1, base_damage)
 
@@ -249,12 +279,59 @@ class Pet:
         advantage = self.TYPE_ADVANTAGES.get(self.type, {}).get(opponent.type, 1.0)
         damage = damage * advantage
 
-        # 暴击（5%概率，1.5倍伤害）
-        is_critical = random.random() < 0.05
+        # 暴击判定
+        is_critical = random.random() < self.critical_rate
+        critical_damage = 0
+        
+        # 暴击效果
         if is_critical:
-            damage = damage * 1.5
-
-        return int(damage)
+            # 计算暴击伤害
+            critical_damage = damage * self.critical_damage
+            
+            # 金属性专属特效
+            if self.type == "金":
+                if self.name == "金刚":
+                    # 暴击时无视20%防御
+                    damage = self.attack * skill_multiplier - opponent.defense * 0.3 * 0.8
+                    damage = max(1, damage)
+                    damage = damage * advantage
+                    critical_damage = damage * self.critical_damage
+                elif self.name == "破甲战犀":
+                    # 暴击时额外造成攻击力30%的真实伤害
+                    additional_damage = self.attack * 0.3
+                    critical_damage += additional_damage
+            
+            # 其他属性暴击联动效果
+            elif self.type == "火":
+                # 暴击时附加"灼烧"效果（3回合5%最大生命伤害）
+                pass  # 灼烧效果需要在战斗循环中实现
+            elif self.type == "水":
+                # 暴击时回复15%造成伤害的生命值
+                heal_amount = int(critical_damage * 0.15)
+                self.hp = min(self.hp + heal_amount, self.hp)  # 需要获取最大HP
+            elif self.type == "草":
+                # 暴击时获得10%最大生命的护盾
+                pass  # 护盾效果需要额外实现
+            elif self.type == "土":
+                # 暴击时降低目标20%防御（2回合）
+                pass  # 防御降低效果需要在战斗循环中实现
+            
+            # 限制暴击伤害上限为3倍基础伤害
+            critical_damage = min(critical_damage, damage * 3)
+            
+            return {
+                "damage": int(critical_damage),
+                "is_critical": True,
+                "critical_rate": self.critical_rate,
+                "critical_damage": self.critical_damage
+            }
+        else:
+            return {
+                "damage": int(damage),
+                "is_critical": False,
+                "critical_rate": self.critical_rate,
+                "critical_damage": self.critical_damage
+            }
         
     def heal(self) -> str:
         """治疗宠物"""
@@ -363,8 +440,8 @@ class Pet:
 攻击力：{self.attack}
 防御力：{self.defense}
 速度：{self.speed}
-暴击率：5%
-暴击伤害：1.5
+暴击率：{self.critical_rate:.1%}
+暴击伤害：{self.critical_damage:.0%}
 技能：{skills_str}"""
 
 # PetDatabase类
