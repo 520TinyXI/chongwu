@@ -252,7 +252,7 @@ class QQPetPlugin(Star):
             self.pets[user_id] = pet
             
             # 保存到数据库
-            self.db.create_pet(user_id, pet.name, pet.type)
+            self.db.create_pet(user_id, pet.name, pet.type, pet.owner)
             self.db.update_pet_data(user_id, **pet.to_dict())
             
             # 生成结果信息
