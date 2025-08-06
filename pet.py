@@ -53,6 +53,7 @@ class Pet:
         self.skills: List[str] = []
         self.last_updated = datetime.now()
         self.last_battle_time = datetime.now() - timedelta(hours=1)  # 初始设置为1小时前
+        self.auto_heal_threshold = 100  # 自动使用治疗瓶的最低血量阈值
         
     @classmethod
     def from_dict(cls, data: Dict[str, Any]):
@@ -74,6 +75,7 @@ class Pet:
             pet.last_battle_time = datetime.fromisoformat(last_battle_time_str)
         else:
             pet.last_battle_time = datetime.now() - timedelta(hours=1)
+        pet.auto_heal_threshold = data.get('auto_heal_threshold', 100)
         return pet
         
     def to_dict(self) -> Dict[str, Any]:
@@ -92,7 +94,8 @@ class Pet:
             'coins': self.coins,
             'skills': self.skills,
             'last_updated': self.last_updated.isoformat(),
-            'last_battle_time': self.last_battle_time.isoformat()
+            'last_battle_time': self.last_battle_time.isoformat(),
+            'auto_heal_threshold': self.auto_heal_threshold
         }
         
     def update_status(self):

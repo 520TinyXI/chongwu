@@ -642,72 +642,113 @@ class QQPetPlugin(Star):
             
             # 战斗循环
             while pet.is_alive() and opponent.is_alive():
+                # 检查是否需要自动使用治疗瓶
+                used_heal_bottle = False
+                if pet.hp <= pet.auto_heal_threshold and pet.auto_heal_threshold > 0:
+                    # 检查背包中是否有治疗瓶
+                    inventory = self.db.get_user_inventory(user_id)
+                    heal_bottle = None
+                    for item in inventory:
+                        if item['name'] in ['小治疗瓶', '中治疗瓶', '大治疗瓶'] and item['quantity'] > 0:
+                            heal_bottle = item['name']
+                            break
+                    
+                    if heal_bottle:
+                        # 使用治疗瓶
+                        heal_result = self.db.use_item_on_pet(user_id, heal_bottle, pet)
+                        battle_log += f"{heal_result}\n"
+                        used_heal_bottle = True
+                        
+                        # 更新数据库
+                        self.db.update_pet_data(
+                            user_id,
+                            hp=pet.hp,
+                            hunger=pet.hunger,
+                            mood=pet.mood
+                        )
+                    
                 if player_first:
-                    # 玩家攻击
-                    # 检查是否可以使用技能
-                    use_skill = False
-                    skill_used = ""
-                    if pet.skills and random.random() < 0.3:  # 30%概率使用技能
-                        skill_used = random.choice(pet.skills)
-                        use_skill = True
-                        
-                        # 根据技能类型计算伤害加成
-                        skill_damage_bonus = 0
-                        if skill_used in ['金刃', '火焰冲击', '水炮', '藤鞭', '地震']:
-                            skill_damage_bonus = 10
-                        elif skill_used in ['金属风暴', '熔岩爆发', '海啸', '森林祝福', '地裂']:
-                            skill_damage_bonus = 20
-                        
-                        damage = pet.calculate_damage(opponent) + skill_damage_bonus
-                        opponent.hp = max(0, opponent.hp - damage)
-                        battle_log += f"{pet.name}使用技能{skill_used}攻击{opponent.name}，造成{damage}点伤害！\n"
+                    # 如果使用了治疗瓶，玩家本回合无法攻击
+                    if used_heal_bottle:
+                        battle_log += f"{pet.name}使用了治疗瓶，本回合无法攻击！\n"
+                        # 对手攻击
+                        damage = opponent.calculate_damage(pet)
+                        pet.hp = max(0, pet.hp - damage)
+                        battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                     else:
-                        damage = pet.calculate_damage(opponent)
-                        opponent.hp = max(0, opponent.hp - damage)
-                        battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
-                    
-                    # 检查对手是否被击败
-                    if not opponent.is_alive():
-                        battle_log += f"{opponent.name}被击败了！\n"
-                        break
-                    
-                    # 对手攻击
-                    damage = opponent.calculate_damage(pet)
-                    pet.hp = max(0, pet.hp - damage)
-                    battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                        # 玩家攻击
+                        # 检查是否可以使用技能
+                        use_skill = False
+                        skill_used = ""
+                        if pet.skills and random.random() < 0.3:  # 30%概率使用技能
+                            skill_used = random.choice(pet.skills)
+                            use_skill = True
+                            
+                            # 根据技能类型计算伤害加成
+                            skill_damage_bonus = 0
+                            if skill_used in ['金刃', '火焰冲击', '水炮', '藤鞭', '地震']:
+                                skill_damage_bonus = 10
+                            elif skill_used in ['金属风暴', '熔岩爆发', '海啸', '森林祝福', '地裂']:
+                                skill_damage_bonus = 20
+                            
+                            damage = pet.calculate_damage(opponent) + skill_damage_bonus
+                            opponent.hp = max(0, opponent.hp - damage)
+                            battle_log += f"{pet.name}使用技能{skill_used}攻击{opponent.name}，造成{damage}点伤害！\n"
+                        else:
+                            damage = pet.calculate_damage(opponent)
+                            opponent.hp = max(0, opponent.hp - damage)
+                            battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                        
+                        # 检查对手是否被击败
+                        if not opponent.is_alive():
+                            battle_log += f"{opponent.name}被击败了！\n"
+                            break
+                        
+                        # 对手攻击
+                        damage = opponent.calculate_damage(pet)
+                        pet.hp = max(0, pet.hp - damage)
+                        battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                 else:
-                    # 对手攻击
-                    damage = opponent.calculate_damage(pet)
-                    pet.hp = max(0, pet.hp - damage)
-                    battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
-                    
-                    # 检查玩家是否被击败
-                    if not pet.is_alive():
-                        battle_log += f"{pet.name}被击败了！\n"
-                        break
-                    
-                    # 玩家攻击
-                    # 检查是否可以使用技能
-                    use_skill = False
-                    skill_used = ""
-                    if pet.skills and random.random() < 0.3:  # 30%概率使用技能
-                        skill_used = random.choice(pet.skills)
-                        use_skill = True
-                        
-                        # 根据技能类型计算伤害加成
-                        skill_damage_bonus = 0
-                        if skill_used in ['金刃', '火焰冲击', '水炮', '藤鞭', '地震']:
-                            skill_damage_bonus = 10
-                        elif skill_used in ['金属风暴', '熔岩爆发', '海啸', '森林祝福', '地裂']:
-                            skill_damage_bonus = 20
-                        
-                        damage = pet.calculate_damage(opponent) + skill_damage_bonus
-                        opponent.hp = max(0, opponent.hp - damage)
-                        battle_log += f"{pet.name}使用技能{skill_used}攻击{opponent.name}，造成{damage}点伤害！\n"
+                    # 如果使用了治疗瓶，玩家本回合无法攻击
+                    if used_heal_bottle:
+                        battle_log += f"{pet.name}使用了治疗瓶，本回合无法攻击！\n"
+                        # 对手攻击
+                        damage = opponent.calculate_damage(pet)
+                        pet.hp = max(0, pet.hp - damage)
+                        battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                     else:
-                        damage = pet.calculate_damage(opponent)
-                        opponent.hp = max(0, opponent.hp - damage)
-                        battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                        # 对手攻击
+                        damage = opponent.calculate_damage(pet)
+                        pet.hp = max(0, pet.hp - damage)
+                        battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                        
+                        # 检查玩家是否被击败
+                        if not pet.is_alive():
+                            battle_log += f"{pet.name}被击败了！\n"
+                            break
+                        
+                        # 玩家攻击
+                        # 检查是否可以使用技能
+                        use_skill = False
+                        skill_used = ""
+                        if pet.skills and random.random() < 0.3:  # 30%概率使用技能
+                            skill_used = random.choice(pet.skills)
+                            use_skill = True
+                            
+                            # 根据技能类型计算伤害加成
+                            skill_damage_bonus = 0
+                            if skill_used in ['金刃', '火焰冲击', '水炮', '藤鞭', '地震']:
+                                skill_damage_bonus = 10
+                            elif skill_used in ['金属风暴', '熔岩爆发', '海啸', '森林祝福', '地裂']:
+                                skill_damage_bonus = 20
+                            
+                            damage = pet.calculate_damage(opponent) + skill_damage_bonus
+                            opponent.hp = max(0, opponent.hp - damage)
+                            battle_log += f"{pet.name}使用技能{skill_used}攻击{opponent.name}，造成{damage}点伤害！\n"
+                        else:
+                            damage = pet.calculate_damage(opponent)
+                            opponent.hp = max(0, opponent.hp - damage)
+                            battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
                 
                 # 添加生命值信息
                 battle_log += f"{pet.name}剩余生命值={pet.hp}\n"
@@ -715,42 +756,48 @@ class QQPetPlugin(Star):
                 battle_log += "--------------------\n"
             
             # 战斗结果
-            if pet.is_alive():
-                # 玩家获胜
-                exp_gain = opponent.level * 20
-                pet.exp += exp_gain
-                
-                # 检查是否升级
-                level_up = False
-                if pet.exp >= pet.level * 100:
-                    pet.level_up()
-                    level_up = True
-                
-                # 更新数据库
-                self.db.update_pet_data(
-                    user_id,
-                    level=pet.level,
-                    exp=pet.exp,
-                    hp=pet.hp,
-                    attack=pet.attack,
-                    defense=pet.defense,
-                    speed=pet.speed,
-                    skills=pet.skills
-                )
-                
-                battle_log += f"\n战斗胜利！{pet.name}剩余生命值={pet.hp}\n"
-                battle_log += f"战斗胜利！{pet.name}获得了{exp_gain}点经验值！"
-                if level_up:
-                    battle_log += f"\n{pet.name}升级了！"
-            else:
-                # 玩家失败
-                battle_log += f"\n战斗失败！{pet.name}被击败了！"
-                
-                # 更新数据库
-                self.db.update_pet_data(
-                    user_id,
-                    hp=pet.hp
-                )
+                if pet.is_alive():
+                    # 玩家获胜
+                    exp_gain = opponent.level * 20
+                    pet.exp += exp_gain
+                    
+                    # 检查是否升级
+                    level_up = False
+                    if pet.exp >= pet.level * 100:
+                        pet.level_up()
+                        level_up = True
+                    
+                    # 战斗结束后自动回满血
+                    pet.hp = 100 + pet.level * 20
+                    
+                    # 更新数据库
+                    self.db.update_pet_data(
+                        user_id,
+                        level=pet.level,
+                        exp=pet.exp,
+                        hp=pet.hp,
+                        attack=pet.attack,
+                        defense=pet.defense,
+                        speed=pet.speed,
+                        skills=pet.skills
+                    )
+                    
+                    battle_log += f"\n战斗胜利！{pet.name}剩余生命值={pet.hp}\n"
+                    battle_log += f"战斗胜利！{pet.name}获得了{exp_gain}点经验值！"
+                    if level_up:
+                        battle_log += f"\n{pet.name}升级了！"
+                else:
+                    # 玩家失败
+                    battle_log += f"\n战斗失败！{pet.name}被击败了！"
+                    
+                    # 战斗结束后自动回满血
+                    pet.hp = 100 + pet.level * 20
+                    
+                    # 更新数据库
+                    self.db.update_pet_data(
+                        user_id,
+                        hp=pet.hp
+                    )
             
             # 直接返回纯文字结果，不生成图片
             yield event.plain_result(battle_log)
@@ -758,37 +805,6 @@ class QQPetPlugin(Star):
         except Exception as e:
             logger.error(f"宠物对战失败: {str(e)}")
             yield event.plain_result("宠物对战失败了~请联系管理员检查日志")
-    
-    @filter.command("治疗宠物")
-    async def heal_pet(self, event: AstrMessageEvent):
-        """治疗宠物"""
-        try:
-            user_id = event.get_sender_id()
-            
-            # 检查是否有宠物
-            if user_id not in self.pets:
-                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
-                return
-            
-            pet = self.pets[user_id]
-            
-            # 治疗宠物
-            result = pet.heal()
-            
-            # 更新数据库
-            self.db.update_pet_data(
-                user_id,
-                hp=pet.hp,
-                hunger=pet.hunger,
-                mood=pet.mood
-            )
-            
-            # 直接返回纯文字结果，不生成图片
-            yield event.plain_result(result)
-            
-        except Exception as e:
-            logger.error(f"治疗宠物失败: {str(e)}")
-            yield event.plain_result("治疗宠物失败了~请联系管理员检查日志")
     
     @filter.command("宠物大全")
     async def pet_catalog(self, event: AstrMessageEvent):
@@ -815,27 +831,6 @@ class QQPetPlugin(Star):
             yield event.plain_result("显示宠物大全失败了~请联系管理员检查日志")
 
 
-    @filter.command("宠物商店")
-    async def pet_store(self, event: AstrMessageEvent):
-        """显示宠物商店"""
-        try:
-            user_id = event.get_sender_id()
-            
-            # 获取商店物品
-            shop_items = self.db.get_shop_items()
-            
-            # 生成商店列表
-            store_list = "@Tiny溪欢迎光临宠物商店！\n--------------------\n"
-            for item in shop_items:
-                store_list += f"【{item['name']}】 ${item['price']}\n效果: {item['description']}\n"
-            store_list += "--------------------\n使用 `购买 [物品名] [数量]` 来购买。"
-            
-            yield event.plain_result(store_list)
-            
-        except Exception as e:
-            logger.error(f"显示宠物商店失败: {str(e)}")
-            yield event.plain_result("显示宠物商店失败了~请联系管理员检查日志")
-    
     @filter.command("购买")
     async def buy_item(self, event: AstrMessageEvent, item_name: str = None, quantity: int = 1):
         """购买物品"""
@@ -1087,36 +1082,77 @@ class QQPetPlugin(Star):
                 
                 # 战斗循环
                 while pet.is_alive() and opponent.is_alive():
+                    # 检查是否需要自动使用治疗瓶
+                    used_heal_bottle = False
+                    if pet.hp <= pet.auto_heal_threshold and pet.auto_heal_threshold > 0:
+                        # 检查背包中是否有治疗瓶
+                        inventory = self.db.get_user_inventory(user_id)
+                        heal_bottle = None
+                        for item in inventory:
+                            if item['name'] in ['小治疗瓶', '中治疗瓶', '大治疗瓶'] and item['quantity'] > 0:
+                                heal_bottle = item['name']
+                                break
+                        
+                        if heal_bottle:
+                            # 使用治疗瓶
+                            heal_result = self.db.use_item_on_pet(user_id, heal_bottle, pet)
+                            battle_log += f"{heal_result}\n"
+                            used_heal_bottle = True
+                            
+                            # 更新数据库
+                            self.db.update_pet_data(
+                                user_id,
+                                hp=pet.hp,
+                                hunger=pet.hunger,
+                                mood=pet.mood
+                            )
+                        
                     if player_first:
-                        # 玩家攻击
-                        damage = pet.calculate_damage(opponent)
-                        opponent.hp = max(0, opponent.hp - damage)
-                        battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
-                        
-                        # 检查对手是否被击败
-                        if not opponent.is_alive():
-                            battle_log += f"{opponent.name}被击败了！\n"
-                            break
-                        
-                        # 对手攻击
-                        damage = opponent.calculate_damage(pet)
-                        pet.hp = max(0, pet.hp - damage)
-                        battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                        # 如果使用了治疗瓶，玩家本回合无法攻击
+                        if used_heal_bottle:
+                            battle_log += f"{pet.name}使用了治疗瓶，本回合无法攻击！\n"
+                            # 对手攻击
+                            damage = opponent.calculate_damage(pet)
+                            pet.hp = max(0, pet.hp - damage)
+                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                        else:
+                            # 玩家攻击
+                            damage = pet.calculate_damage(opponent)
+                            opponent.hp = max(0, opponent.hp - damage)
+                            battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                            
+                            # 检查对手是否被击败
+                            if not opponent.is_alive():
+                                battle_log += f"{opponent.name}被击败了！\n"
+                                break
+                            
+                            # 对手攻击
+                            damage = opponent.calculate_damage(pet)
+                            pet.hp = max(0, pet.hp - damage)
+                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                     else:
-                        # 对手攻击
-                        damage = opponent.calculate_damage(pet)
-                        pet.hp = max(0, pet.hp - damage)
-                        battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
-                        
-                        # 检查玩家是否被击败
-                        if not pet.is_alive():
-                            battle_log += f"{pet.name}被击败了！\n"
-                            break
-                        
-                        # 玩家攻击
-                        damage = pet.calculate_damage(opponent)
-                        opponent.hp = max(0, opponent.hp - damage)
-                        battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                        # 如果使用了治疗瓶，玩家本回合无法攻击
+                        if used_heal_bottle:
+                            battle_log += f"{pet.name}使用了治疗瓶，本回合无法攻击！\n"
+                            # 对手攻击
+                            damage = opponent.calculate_damage(pet)
+                            pet.hp = max(0, pet.hp - damage)
+                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                        else:
+                            # 对手攻击
+                            damage = opponent.calculate_damage(pet)
+                            pet.hp = max(0, pet.hp - damage)
+                            battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                            
+                            # 检查玩家是否被击败
+                            if not pet.is_alive():
+                                battle_log += f"{pet.name}被击败了！\n"
+                                break
+                            
+                            # 玩家攻击
+                            damage = pet.calculate_damage(opponent)
+                            opponent.hp = max(0, opponent.hp - damage)
+                            battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
                     
                     # 添加生命值信息
                     battle_log += f"{pet.name}剩余生命值={pet.hp}\n"
@@ -1139,6 +1175,9 @@ class QQPetPlugin(Star):
                     coins_gain = opponent.level * 10
                     pet.coins += coins_gain
                     
+                    # 战斗结束后自动回满血
+                    pet.hp = 100 + pet.level * 20
+                    
                     # 更新数据库
                     self.db.update_pet_data(
                         user_id,
@@ -1159,6 +1198,9 @@ class QQPetPlugin(Star):
                 else:
                     # 玩家失败
                     battle_log += f"\n战斗失败！{pet.name}被击败了！"
+                    
+                    # 战斗结束后自动回满血
+                    pet.hp = 100 + pet.level * 20
                     
                     # 更新数据库
                     self.db.update_pet_data(
@@ -1414,4 +1456,56 @@ class QQPetPlugin(Star):
         except Exception as e:
             logger.error(f"购买物品失败: {str(e)}")
             yield event.plain_result("购买物品失败了~请联系管理员检查日志")
+    
+    @filter.command("战斗设置")
+    async def battle_settings(self, event: AstrMessageEvent):
+        """查看战斗设置"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 返回战斗设置
+            settings = f"战斗设置排版：\n战斗中低于【{pet.auto_heal_threshold}血】自动使用治疗瓶\n提示：如需修改数值，输入/修改最低血量 [数值]。如果不使用治疗瓶填入0即可！"
+            yield event.plain_result(settings)
+            
+        except Exception as e:
+            logger.error(f"查看战斗设置失败: {str(e)}")
+            yield event.plain_result("查看战斗设置失败了~请联系管理员检查日志")
+    
+    @filter.command("修改最低血量")
+    async def modify_auto_heal_threshold(self, event: AstrMessageEvent, threshold: int = None):
+        """修改自动使用治疗瓶的最低血量阈值"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查参数
+            if threshold is None:
+                yield event.plain_result("请使用格式: /修改最低血量 [数值]")
+                return
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'创建宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 更新阈值
+            pet.auto_heal_threshold = threshold
+            
+            # 更新数据库
+            self.db.update_pet_data(user_id, auto_heal_threshold=pet.auto_heal_threshold)
+            
+            # 返回结果
+            yield event.plain_result(f"已将自动使用治疗瓶的最低血量阈值修改为{threshold}")
+            
+        except Exception as e:
+            logger.error(f"修改最低血量失败: {str(e)}")
+            yield event.plain_result("修改最低血量失败了~请联系管理员检查日志")
 
