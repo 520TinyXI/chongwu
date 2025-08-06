@@ -22,7 +22,9 @@ class Pet:
         "木": {"土": 1.2, "金": 0.8, "木": 1.0, "火": 1.0, "水": 1.0},
         "土": {"水": 1.2, "木": 0.8, "土": 1.0, "金": 1.0, "火": 1.0},
         "水": {"火": 1.2, "土": 0.8, "水": 1.0, "木": 1.0, "金": 1.0},
-        "火": {"金": 1.2, "水": 0.8, "火": 1.0, "土": 1.0, "木": 1.0}
+        "火": {"金": 1.2, "水": 0.8, "火": 1.0, "土": 1.0, "木": 1.0},
+        "暗": {"普通": 1.2, "金": 1.1, "木": 1.0, "火": 1.0, "水": 1.0, "土": 1.0},
+        "普通": {"暗": 1.2, "土": 1.1, "金": 1.0, "木": 1.0, "火": 1.0, "水": 1.0}
     }
 
     # 宠物类型对应的基础图片
@@ -51,7 +53,9 @@ class Pet:
             "水": {"hp": 50, "attack": 10, "defense": 8, "speed": 10},
             "草": {"hp": 60, "attack": 8, "defense": 12, "speed": 8},
             "土": {"hp": 70, "attack": 7, "defense": 10, "speed": 6},
-            "金": {"hp": 45, "attack": 14, "defense": 6, "speed": 14}
+            "金": {"hp": 45, "attack": 14, "defense": 6, "speed": 14},
+            "暗": {"hp": 55, "attack": 12, "defense": 7, "speed": 11},
+            "普通": {"hp": 50, "attack": 10, "defense": 6, "speed": 9}
         }
         
         stats = base_stats.get(pet_type, {"hp": 40, "attack": 10, "defense": 5, "speed": 10})
@@ -155,7 +159,9 @@ class Pet:
             "水": {"hp": 16, "attack": 3.0, "defense": 2.0, "speed": 2.5},
             "草": {"hp": 18, "attack": 2.5, "defense": 3.0, "speed": 2.0},
             "土": {"hp": 20, "attack": 2.2, "defense": 2.5, "speed": 1.8},
-            "金": {"hp": 16, "attack": 3.5, "defense": 1.8, "speed": 3.2}
+            "金": {"hp": 16, "attack": 3.5, "defense": 1.8, "speed": 3.2},
+            "暗": {"hp": 17, "attack": 3.2, "defense": 2.0, "speed": 2.8},
+            "普通": {"hp": 16, "attack": 3.0, "defense": 1.8, "speed": 2.4}
         }
         
         # 进化形态属性
@@ -164,7 +170,9 @@ class Pet:
             "水": {"hp": 20, "attack": 3.8, "defense": 2.5, "speed": 3.1},
             "草": {"hp": 23, "attack": 3.1, "defense": 3.8, "speed": 2.5},
             "土": {"hp": 25, "attack": 2.8, "defense": 3.1, "speed": 2.3},
-            "金": {"hp": 20, "attack": 4.4, "defense": 2.3, "speed": 4.0}
+            "金": {"hp": 20, "attack": 4.4, "defense": 2.3, "speed": 4.0},
+            "暗": {"hp": 22, "attack": 4.2, "defense": 2.5, "speed": 3.5},
+            "普通": {"hp": 21, "attack": 4.0, "defense": 2.3, "speed": 3.1}
         }
         
         # 基础形态基础属性
@@ -173,7 +181,9 @@ class Pet:
             "水": {"hp": 50, "attack": 10, "defense": 8, "speed": 10},
             "草": {"hp": 60, "attack": 8, "defense": 12, "speed": 8},
             "土": {"hp": 70, "attack": 7, "defense": 10, "speed": 6},
-            "金": {"hp": 45, "attack": 14, "defense": 6, "speed": 14}
+            "金": {"hp": 45, "attack": 14, "defense": 6, "speed": 14},
+            "暗": {"hp": 55, "attack": 12, "defense": 7, "speed": 11},
+            "普通": {"hp": 50, "attack": 10, "defense": 6, "speed": 9}
         }
         
         # 进化形态基础属性（30级）
@@ -182,7 +192,9 @@ class Pet:
             "水": {"hp": 643, "attack": 121, "defense": 83, "speed": 103},
             "草": {"hp": 728, "attack": 101, "defense": 124, "speed": 83},
             "土": {"hp": 813, "attack": 89, "defense": 103, "speed": 73},
-            "金": {"hp": 636, "attack": 144, "defense": 73, "speed": 134}
+            "金": {"hp": 636, "attack": 144, "defense": 73, "speed": 134},
+            "暗": {"hp": 620, "attack": 135, "defense": 75, "speed": 110},
+            "普通": {"hp": 630, "attack": 130, "defense": 70, "speed": 105}
         }
         
         # 判断是否为进化形态
