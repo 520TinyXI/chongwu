@@ -432,39 +432,39 @@ class QQPetPlugin(Star):
             while pet.is_alive() and opponent_pet.is_alive():
                 if player_first:
                     # 玩家攻击
-                    # 30%概率使用技能
-                    if random.random() < 0.3 and pet.skills:
+                    # 35%概率使用技能
+                    if random.random() < 0.35 and pet.skills and pet.skill_unlocked:
                         skill = random.choice(pet.skills)
-                        if skill == "火球术":
-                            skill_multiplier = 1.2
-                            battle_log += f"{pet.name}使用了火球术！\n"
-                        elif skill == "水枪术":
-                            skill_multiplier = 1.2
-                            battle_log += f"{pet.name}使用了水枪术！\n"
-                        elif skill == "藤鞭":
-                            skill_multiplier = 1.2
-                            battle_log += f"{pet.name}使用了藤鞭！\n"
-                        elif skill == "地震":
-                            skill_multiplier = 1.2
-                            battle_log += f"{pet.name}使用了地震！\n"
-                        elif skill == "金属爪":
-                            skill_multiplier = 1.2
-                            battle_log += f"{pet.name}使用了金属爪！\n"
-                        elif skill == "烈焰风暴":
-                            skill_multiplier = 1.5
-                            battle_log += f"{pet.name}使用了烈焰风暴！\n"
-                        elif skill == "水龙卷":
-                            skill_multiplier = 1.5
-                            battle_log += f"{pet.name}使用了水龙卷！\n"
-                        elif skill == "飞叶快刀":
-                            skill_multiplier = 1.5
-                            battle_log += f"{pet.name}使用了飞叶快刀！\n"
-                        elif skill == "岩崩":
-                            skill_multiplier = 1.5
-                            battle_log += f"{pet.name}使用了岩崩！\n"
-                        elif skill == "雷电拳":
-                            skill_multiplier = 1.5
-                            battle_log += f"{pet.name}使用了雷电拳！\n"
+                        # 玩家使用新技能系统
+                        if skill == "火焰焚烧":
+                            skill_multiplier = 1.8
+                            battle_log += f"{pet.name}使用了火焰焚烧！\n"
+                            opponent_pet.burn_turns = 2
+                            battle_log += f"{opponent_pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                        elif skill == "巨浪淹没":
+                            skill_multiplier = 1.1
+                            battle_log += f"{pet.name}使用了巨浪淹没！\n"
+                            opponent_pet.heal_blocked_turns = 2
+                            battle_log += f"{opponent_pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                            if pet.defense_boost == 0:
+                                pet.defense_boost = 0.3
+                                battle_log += f"{pet.name}防御提升30%！\n"
+                        elif skill == "根须缠绕":
+                            skill_multiplier = 1.0
+                            battle_log += f"{pet.name}使用了根须缠绕！\n"
+                            battle_log += f"{opponent_pet.name}被根须缠绕，下回合无法行动！\n"
+                            opponent_pet.defense_boost = -0.2
+                            battle_log += f"{opponent_pet.name}防御降低20%！\n"
+                        elif skill == "大地堡垒":
+                            skill_multiplier = 1.0
+                            battle_log += f"{pet.name}使用了大地堡垒！\n"
+                            shield_amount = int(pet.defense * 2.0)
+                            battle_log += f"{pet.name}获得了{shield_amount}点护盾！\n"
+                        elif skill == "金属风暴":
+                            skill_multiplier = 1.6
+                            battle_log += f"{pet.name}使用了金属风暴！\n"
+                            pet.crit_rate_boost = 0.3
+                            battle_log += f"{pet.name}暴击率提升30%！\n"
                         else:
                             skill_multiplier = 1.0
                     else:
@@ -480,39 +480,39 @@ class QQPetPlugin(Star):
                         break
                     
                     # 对手攻击
-                    # 30%概率使用技能
-                    if random.random() < 0.3 and opponent_pet.skills:
+                    # 35%概率使用技能
+                    if random.random() < 0.35 and opponent_pet.skills and opponent_pet.skill_unlocked:
                         skill = random.choice(opponent_pet.skills)
-                        if skill == "火球术":
-                            skill_multiplier = 1.2
-                            battle_log += f"{opponent_pet.name}使用了火球术！\n"
-                        elif skill == "水枪术":
-                            skill_multiplier = 1.2
-                            battle_log += f"{opponent_pet.name}使用了水枪术！\n"
-                        elif skill == "藤鞭":
-                            skill_multiplier = 1.2
-                            battle_log += f"{opponent_pet.name}使用了藤鞭！\n"
-                        elif skill == "地震":
-                            skill_multiplier = 1.2
-                            battle_log += f"{opponent_pet.name}使用了地震！\n"
-                        elif skill == "金属爪":
-                            skill_multiplier = 1.2
-                            battle_log += f"{opponent_pet.name}使用了金属爪！\n"
-                        elif skill == "烈焰风暴":
-                            skill_multiplier = 1.5
-                            battle_log += f"{opponent_pet.name}使用了烈焰风暴！\n"
-                        elif skill == "水龙卷":
-                            skill_multiplier = 1.5
-                            battle_log += f"{opponent_pet.name}使用了水龙卷！\n"
-                        elif skill == "飞叶快刀":
-                            skill_multiplier = 1.5
-                            battle_log += f"{opponent_pet.name}使用了飞叶快刀！\n"
-                        elif skill == "岩崩":
-                            skill_multiplier = 1.5
-                            battle_log += f"{opponent_pet.name}使用了岩崩！\n"
-                        elif skill == "雷电拳":
-                            skill_multiplier = 1.5
-                            battle_log += f"{opponent_pet.name}使用了雷电拳！\n"
+                        # 对手使用新技能系统
+                        if skill == "火焰焚烧":
+                            skill_multiplier = 1.8
+                            battle_log += f"{opponent_pet.name}使用了火焰焚烧！\n"
+                            pet.burn_turns = 2
+                            battle_log += f"{pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                        elif skill == "巨浪淹没":
+                            skill_multiplier = 1.1
+                            battle_log += f"{opponent_pet.name}使用了巨浪淹没！\n"
+                            pet.heal_blocked_turns = 2
+                            battle_log += f"{pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                            if opponent_pet.defense_boost == 0:
+                                opponent_pet.defense_boost = 0.3
+                                battle_log += f"{opponent_pet.name}防御提升30%！\n"
+                        elif skill == "根须缠绕":
+                            skill_multiplier = 1.0
+                            battle_log += f"{opponent_pet.name}使用了根须缠绕！\n"
+                            battle_log += f"{pet.name}被根须缠绕，下回合无法行动！\n"
+                            pet.defense_boost = -0.2
+                            battle_log += f"{pet.name}防御降低20%！\n"
+                        elif skill == "大地堡垒":
+                            skill_multiplier = 1.0
+                            battle_log += f"{opponent_pet.name}使用了大地堡垒！\n"
+                            shield_amount = int(opponent_pet.defense * 2.0)
+                            battle_log += f"{opponent_pet.name}获得了{shield_amount}点护盾！\n"
+                        elif skill == "金属风暴":
+                            skill_multiplier = 1.6
+                            battle_log += f"{opponent_pet.name}使用了金属风暴！\n"
+                            opponent_pet.crit_rate_boost = 0.3
+                            battle_log += f"{opponent_pet.name}暴击率提升30%！\n"
                         else:
                             skill_multiplier = 1.0
                     else:
@@ -523,15 +523,39 @@ class QQPetPlugin(Star):
                     battle_log += f"{opponent_pet.name}攻击{pet.name}，造成{damage}点伤害！\n"
                 else:
                     # 对手攻击
-                    # 30%概率使用技能
-                    if random.random() < 0.3 and opponent_pet.skills:
+                    # 35%概率使用技能
+                    if random.random() < 0.35 and opponent_pet.skills and opponent_pet.skill_unlocked:
                         skill = random.choice(opponent_pet.skills)
-                        if skill in ["火球术", "水枪术", "藤鞭", "地震", "金属爪"]:
-                            skill_multiplier = 1.2
-                            battle_log += f"{opponent_pet.name}使用了{skill}！\n"
-                        elif skill in ["烈焰风暴", "水龙卷", "飞叶快刀", "岩崩", "雷电拳"]:
-                            skill_multiplier = 1.5
-                            battle_log += f"{opponent_pet.name}使用了{skill}！\n"
+                        # 对手使用新技能系统
+                        if skill == "火焰焚烧":
+                            skill_multiplier = 1.8
+                            battle_log += f"{opponent_pet.name}使用了火焰焚烧！\n"
+                            pet.burn_turns = 2
+                            battle_log += f"{pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                        elif skill == "巨浪淹没":
+                            skill_multiplier = 1.1
+                            battle_log += f"{opponent_pet.name}使用了巨浪淹没！\n"
+                            pet.heal_blocked_turns = 2
+                            battle_log += f"{pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                            if opponent_pet.defense_boost == 0:
+                                opponent_pet.defense_boost = 0.3
+                                battle_log += f"{opponent_pet.name}防御提升30%！\n"
+                        elif skill == "根须缠绕":
+                            skill_multiplier = 1.0
+                            battle_log += f"{opponent_pet.name}使用了根须缠绕！\n"
+                            battle_log += f"{pet.name}被根须缠绕，下回合无法行动！\n"
+                            pet.defense_boost = -0.2
+                            battle_log += f"{pet.name}防御降低20%！\n"
+                        elif skill == "大地堡垒":
+                            skill_multiplier = 1.0
+                            battle_log += f"{opponent_pet.name}使用了大地堡垒！\n"
+                            shield_amount = int(opponent_pet.defense * 2.0)
+                            battle_log += f"{opponent_pet.name}获得了{shield_amount}点护盾！\n"
+                        elif skill == "金属风暴":
+                            skill_multiplier = 1.6
+                            battle_log += f"{opponent_pet.name}使用了金属风暴！\n"
+                            opponent_pet.crit_rate_boost = 0.3
+                            battle_log += f"{opponent_pet.name}暴击率提升30%！\n"
                         else:
                             skill_multiplier = 1.0
                     else:
@@ -547,15 +571,39 @@ class QQPetPlugin(Star):
                         break
                     
                     # 玩家攻击
-                    # 30%概率使用技能
-                    if random.random() < 0.3 and pet.skills:
+                    # 35%概率使用技能
+                    if random.random() < 0.35 and pet.skills and pet.skill_unlocked:
                         skill = random.choice(pet.skills)
-                        if skill in ["火球术", "水枪术", "藤鞭", "地震", "金属爪"]:
-                            skill_multiplier = 1.2
-                            battle_log += f"{pet.name}使用了{skill}！\n"
-                        elif skill in ["烈焰风暴", "水龙卷", "飞叶快刀", "岩崩", "雷电拳"]:
-                            skill_multiplier = 1.5
-                            battle_log += f"{pet.name}使用了{skill}！\n"
+                        # 玩家使用新技能系统
+                        if skill == "火焰焚烧":
+                            skill_multiplier = 1.8
+                            battle_log += f"{pet.name}使用了火焰焚烧！\n"
+                            opponent_pet.burn_turns = 2
+                            battle_log += f"{opponent_pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                        elif skill == "巨浪淹没":
+                            skill_multiplier = 1.1
+                            battle_log += f"{pet.name}使用了巨浪淹没！\n"
+                            opponent_pet.heal_blocked_turns = 2
+                            battle_log += f"{opponent_pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                            if pet.defense_boost == 0:
+                                pet.defense_boost = 0.3
+                                battle_log += f"{pet.name}防御提升30%！\n"
+                        elif skill == "根须缠绕":
+                            skill_multiplier = 1.0
+                            battle_log += f"{pet.name}使用了根须缠绕！\n"
+                            battle_log += f"{opponent_pet.name}被根须缠绕，下回合无法行动！\n"
+                            opponent_pet.defense_boost = -0.2
+                            battle_log += f"{opponent_pet.name}防御降低20%！\n"
+                        elif skill == "大地堡垒":
+                            skill_multiplier = 1.0
+                            battle_log += f"{pet.name}使用了大地堡垒！\n"
+                            shield_amount = int(pet.defense * 2.0)
+                            battle_log += f"{pet.name}获得了{shield_amount}点护盾！\n"
+                        elif skill == "金属风暴":
+                            skill_multiplier = 1.6
+                            battle_log += f"{pet.name}使用了金属风暴！\n"
+                            pet.crit_rate_boost = 0.3
+                            battle_log += f"{pet.name}暴击率提升30%！\n"
                         else:
                             skill_multiplier = 1.0
                     else:
@@ -1002,39 +1050,39 @@ class QQPetPlugin(Star):
                         if used_heal_bottle:
                             battle_log += f"{pet.name}使用了治疗瓶，本回合无法攻击！\n"
                             # 对手攻击
-                            # 30%概率使用技能
-                            if random.random() < 0.3 and opponent.skills:
+                            # 35%概率使用技能
+                            if random.random() < 0.35 and opponent.skills and opponent.skill_unlocked:
                                 skill = random.choice(opponent.skills)
-                                if skill == "火球术":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{opponent.name}使用了火球术！\n"
-                                elif skill == "水枪术":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{opponent.name}使用了水枪术！\n"
-                                elif skill == "藤鞭":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{opponent.name}使用了藤鞭！\n"
-                                elif skill == "地震":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{opponent.name}使用了地震！\n"
-                                elif skill == "金属爪":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{opponent.name}使用了金属爪！\n"
-                                elif skill == "烈焰风暴":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{opponent.name}使用了烈焰风暴！\n"
-                                elif skill == "水龙卷":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{opponent.name}使用了水龙卷！\n"
-                                elif skill == "飞叶快刀":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{opponent.name}使用了飞叶快刀！\n"
-                                elif skill == "岩崩":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{opponent.name}使用了岩崩！\n"
-                                elif skill == "雷电拳":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{opponent.name}使用了雷电拳！\n"
+                                # 对手使用新技能系统
+                                if skill == "火焰焚烧":
+                                    skill_multiplier = 1.8
+                                    battle_log += f"{opponent.name}使用了火焰焚烧！\n"
+                                    pet.burn_turns = 2
+                                    battle_log += f"{pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                                elif skill == "巨浪淹没":
+                                    skill_multiplier = 1.1
+                                    battle_log += f"{opponent.name}使用了巨浪淹没！\n"
+                                    pet.heal_blocked_turns = 2
+                                    battle_log += f"{pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                                    if opponent.defense_boost == 0:
+                                        opponent.defense_boost = 0.3
+                                        battle_log += f"{opponent.name}防御提升30%！\n"
+                                elif skill == "根须缠绕":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{opponent.name}使用了根须缠绕！\n"
+                                    battle_log += f"{pet.name}被根须缠绕，下回合无法行动！\n"
+                                    pet.defense_boost = -0.2
+                                    battle_log += f"{pet.name}防御降低20%！\n"
+                                elif skill == "大地堡垒":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{opponent.name}使用了大地堡垒！\n"
+                                    shield_amount = int(opponent.defense * 2.0)
+                                    battle_log += f"{opponent.name}获得了{shield_amount}点护盾！\n"
+                                elif skill == "金属风暴":
+                                    skill_multiplier = 1.6
+                                    battle_log += f"{opponent.name}使用了金属风暴！\n"
+                                    opponent.crit_rate_boost = 0.3
+                                    battle_log += f"{opponent.name}暴击率提升30%！\n"
                                 else:
                                     skill_multiplier = 1.0
                             else:
@@ -1049,39 +1097,47 @@ class QQPetPlugin(Star):
                                 battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
                         else:
                             # 玩家攻击
-                            # 30%概率使用技能
-                            if random.random() < 0.3 and pet.skills:
+                            # 35%概率使用技能
+                            if random.random() < 0.35 and pet.skills and pet.skill_unlocked:
                                 skill = random.choice(pet.skills)
-                                if skill == "火球术":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{pet.name}使用了火球术！\n"
-                                elif skill == "水枪术":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{pet.name}使用了水枪术！\n"
-                                elif skill == "藤鞭":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{pet.name}使用了藤鞭！\n"
-                                elif skill == "地震":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{pet.name}使用了地震！\n"
-                                elif skill == "金属爪":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{pet.name}使用了金属爪！\n"
-                                elif skill == "烈焰风暴":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{pet.name}使用了烈焰风暴！\n"
-                                elif skill == "水龙卷":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{pet.name}使用了水龙卷！\n"
-                                elif skill == "飞叶快刀":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{pet.name}使用了飞叶快刀！\n"
-                                elif skill == "岩崩":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{pet.name}使用了岩崩！\n"
-                                elif skill == "雷电拳":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{pet.name}使用了雷电拳！\n"
+                                # 新技能系统
+                                if skill == "火焰焚烧":
+                                    skill_multiplier = 1.8
+                                    battle_log += f"{pet.name}使用了火焰焚烧！\n"
+                                    # 灼烧效果：2回合内对手每回合额外受到20%攻击伤害
+                                    opponent.burn_turns = 2
+                                    battle_log += f"{opponent.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                                elif skill == "巨浪淹没":
+                                    skill_multiplier = 1.1
+                                    battle_log += f"{pet.name}使用了巨浪淹没！\n"
+                                    # 禁疗效果：2回合内无法治疗
+                                    opponent.heal_blocked_turns = 2
+                                    battle_log += f"{opponent.name}被禁疗了，2回合内无法使用治疗！\n"
+                                    # 自身防御加30%
+                                    if pet.defense_boost == 0:
+                                        pet.defense_boost = 0.3
+                                        battle_log += f"{pet.name}防御提升30%！\n"
+                                elif skill == "根须缠绕":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{pet.name}使用了根须缠绕！\n"
+                                    # 使目标无法行动2回合
+                                    # 这里简化处理，实际应该在战斗循环中实现
+                                    battle_log += f"{opponent.name}被根须缠绕，下回合无法行动！\n"
+                                    # 降低目标防御20%两回合
+                                    opponent.defense_boost = -0.2
+                                    battle_log += f"{opponent.name}防御降低20%！\n"
+                                elif skill == "大地堡垒":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{pet.name}使用了大地堡垒！\n"
+                                    # 为自身添加相当于自身防御200%的护盾
+                                    shield_amount = int(pet.defense * 2.0)
+                                    battle_log += f"{pet.name}获得了{shield_amount}点护盾！\n"
+                                elif skill == "金属风暴":
+                                    skill_multiplier = 1.6
+                                    battle_log += f"{pet.name}使用了金属风暴！\n"
+                                    # 暴击率添加30%直至触发暴击伤害
+                                    pet.crit_rate_boost = 0.3
+                                    battle_log += f"{pet.name}暴击率提升30%！\n"
                                 else:
                                     skill_multiplier = 1.0
                             else:
@@ -1101,39 +1157,39 @@ class QQPetPlugin(Star):
                                 break
                             
                             # 对手攻击
-                            # 30%概率使用技能
-                            if random.random() < 0.3 and opponent.skills:
+                            # 35%概率使用技能
+                            if random.random() < 0.35 and opponent.skills and opponent.skill_unlocked:
                                 skill = random.choice(opponent.skills)
-                                if skill == "火球术":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{opponent.name}使用了火球术！\n"
-                                elif skill == "水枪术":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{opponent.name}使用了水枪术！\n"
-                                elif skill == "藤鞭":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{opponent.name}使用了藤鞭！\n"
-                                elif skill == "地震":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{opponent.name}使用了地震！\n"
-                                elif skill == "金属爪":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{opponent.name}使用了金属爪！\n"
-                                elif skill == "烈焰风暴":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{opponent.name}使用了烈焰风暴！\n"
-                                elif skill == "水龙卷":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{opponent.name}使用了水龙卷！\n"
-                                elif skill == "飞叶快刀":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{opponent.name}使用了飞叶快刀！\n"
-                                elif skill == "岩崩":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{opponent.name}使用了岩崩！\n"
-                                elif skill == "雷电拳":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{opponent.name}使用了雷电拳！\n"
+                                # 对手使用新技能系统
+                                if skill == "火焰焚烧":
+                                    skill_multiplier = 1.8
+                                    battle_log += f"{opponent.name}使用了火焰焚烧！\n"
+                                    pet.burn_turns = 2
+                                    battle_log += f"{pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                                elif skill == "巨浪淹没":
+                                    skill_multiplier = 1.1
+                                    battle_log += f"{opponent.name}使用了巨浪淹没！\n"
+                                    pet.heal_blocked_turns = 2
+                                    battle_log += f"{pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                                    if opponent.defense_boost == 0:
+                                        opponent.defense_boost = 0.3
+                                        battle_log += f"{opponent.name}防御提升30%！\n"
+                                elif skill == "根须缠绕":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{opponent.name}使用了根须缠绕！\n"
+                                    battle_log += f"{pet.name}被根须缠绕，下回合无法行动！\n"
+                                    pet.defense_boost = -0.2
+                                    battle_log += f"{pet.name}防御降低20%！\n"
+                                elif skill == "大地堡垒":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{opponent.name}使用了大地堡垒！\n"
+                                    shield_amount = int(opponent.defense * 2.0)
+                                    battle_log += f"{opponent.name}获得了{shield_amount}点护盾！\n"
+                                elif skill == "金属风暴":
+                                    skill_multiplier = 1.6
+                                    battle_log += f"{opponent.name}使用了金属风暴！\n"
+                                    opponent.crit_rate_boost = 0.3
+                                    battle_log += f"{opponent.name}暴击率提升30%！\n"
                                 else:
                                     skill_multiplier = 1.0
                             else:
@@ -1151,15 +1207,39 @@ class QQPetPlugin(Star):
                         if used_heal_bottle:
                             battle_log += f"{pet.name}使用了治疗瓶，本回合无法攻击！\n"
                             # 对手攻击
-                            # 30%概率使用技能
-                            if random.random() < 0.3 and opponent.skills:
+                            # 35%概率使用技能
+                            if random.random() < 0.35 and opponent.skills and opponent.skill_unlocked:
                                 skill = random.choice(opponent.skills)
-                                if skill in ["火球术", "水枪术", "藤鞭", "地震", "金属爪"]:
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{opponent.name}使用了{skill}！\n"
-                                elif skill in ["烈焰风暴", "水龙卷", "飞叶快刀", "岩崩", "雷电拳"]:
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{opponent.name}使用了{skill}！\n"
+                                # 对手使用新技能系统
+                                if skill == "火焰焚烧":
+                                    skill_multiplier = 1.8
+                                    battle_log += f"{opponent.name}使用了火焰焚烧！\n"
+                                    pet.burn_turns = 2
+                                    battle_log += f"{pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                                elif skill == "巨浪淹没":
+                                    skill_multiplier = 1.1
+                                    battle_log += f"{opponent.name}使用了巨浪淹没！\n"
+                                    pet.heal_blocked_turns = 2
+                                    battle_log += f"{pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                                    if opponent.defense_boost == 0:
+                                        opponent.defense_boost = 0.3
+                                        battle_log += f"{opponent.name}防御提升30%！\n"
+                                elif skill == "根须缠绕":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{opponent.name}使用了根须缠绕！\n"
+                                    battle_log += f"{pet.name}被根须缠绕，下回合无法行动！\n"
+                                    pet.defense_boost = -0.2
+                                    battle_log += f"{pet.name}防御降低20%！\n"
+                                elif skill == "大地堡垒":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{opponent.name}使用了大地堡垒！\n"
+                                    shield_amount = int(opponent.defense * 2.0)
+                                    battle_log += f"{opponent.name}获得了{shield_amount}点护盾！\n"
+                                elif skill == "金属风暴":
+                                    skill_multiplier = 1.6
+                                    battle_log += f"{opponent.name}使用了金属风暴！\n"
+                                    opponent.crit_rate_boost = 0.3
+                                    battle_log += f"{opponent.name}暴击率提升30%！\n"
                                 else:
                                     skill_multiplier = 1.0
                             else:
@@ -1188,39 +1268,39 @@ class QQPetPlugin(Star):
                                 break
                             
                             # 玩家攻击
-                            # 30%概率使用技能
-                            if random.random() < 0.3 and pet.skills:
+                            # 35%概率使用技能
+                            if random.random() < 0.35 and pet.skills and pet.skill_unlocked:
                                 skill = random.choice(pet.skills)
-                                if skill == "火球术":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{pet.name}使用了火球术！\n"
-                                elif skill == "水枪术":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{pet.name}使用了水枪术！\n"
-                                elif skill == "藤鞭":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{pet.name}使用了藤鞭！\n"
-                                elif skill == "地震":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{pet.name}使用了地震！\n"
-                                elif skill == "金属爪":
-                                    skill_multiplier = 1.2
-                                    battle_log += f"{pet.name}使用了金属爪！\n"
-                                elif skill == "烈焰风暴":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{pet.name}使用了烈焰风暴！\n"
-                                elif skill == "水龙卷":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{pet.name}使用了水龙卷！\n"
-                                elif skill == "飞叶快刀":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{pet.name}使用了飞叶快刀！\n"
-                                elif skill == "岩崩":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{pet.name}使用了岩崩！\n"
-                                elif skill == "雷电拳":
-                                    skill_multiplier = 1.5
-                                    battle_log += f"{pet.name}使用了雷电拳！\n"
+                                # 玩家使用新技能系统
+                                if skill == "火焰焚烧":
+                                    skill_multiplier = 1.8
+                                    battle_log += f"{pet.name}使用了火焰焚烧！\n"
+                                    opponent.burn_turns = 2
+                                    battle_log += f"{opponent.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                                elif skill == "巨浪淹没":
+                                    skill_multiplier = 1.1
+                                    battle_log += f"{pet.name}使用了巨浪淹没！\n"
+                                    opponent.heal_blocked_turns = 2
+                                    battle_log += f"{opponent.name}被禁疗了，2回合内无法使用治疗！\n"
+                                    if pet.defense_boost == 0:
+                                        pet.defense_boost = 0.3
+                                        battle_log += f"{pet.name}防御提升30%！\n"
+                                elif skill == "根须缠绕":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{pet.name}使用了根须缠绕！\n"
+                                    battle_log += f"{opponent.name}被根须缠绕，下回合无法行动！\n"
+                                    opponent.defense_boost = -0.2
+                                    battle_log += f"{opponent.name}防御降低20%！\n"
+                                elif skill == "大地堡垒":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{pet.name}使用了大地堡垒！\n"
+                                    shield_amount = int(pet.defense * 2.0)
+                                    battle_log += f"{pet.name}获得了{shield_amount}点护盾！\n"
+                                elif skill == "金属风暴":
+                                    skill_multiplier = 1.6
+                                    battle_log += f"{pet.name}使用了金属风暴！\n"
+                                    pet.crit_rate_boost = 0.3
+                                    battle_log += f"{pet.name}暴击率提升30%！\n"
                                 else:
                                     skill_multiplier = 1.0
                             else:
@@ -1434,19 +1514,19 @@ class QQPetPlugin(Star):
             result = f"{pet.name}使用了{skill_name}技能！"
             
             # 根据技能类型添加效果
-            if skill_name in ['金刃', '火焰冲击', '水炮', '藤鞭', '地震']:
+            if skill_name in ['火焰焚烧', '巨浪淹没', '根须缠绕', '大地堡垒', '金属风暴']:
                 result += "\n技能效果：造成额外伤害！"
-            elif skill_name in ['坚固', '大地守护']:
+            elif skill_name in ['大地堡垒']:
                 result += "\n技能效果：提升防御力！"
-            elif skill_name in ['光合作用', '水雾']:
+            elif skill_name in ['巨浪淹没']:
                 result += "\n技能效果：恢复少量HP！"
-            elif skill_name in ['燃烧', '冰冻']:
+            elif skill_name in ['火焰焚烧']:
                 result += "\n技能效果：使对手进入异常状态！"
-            elif skill_name in ['反射', '寄生种子']:
+            elif skill_name in ['根须缠绕']:
                 result += "\n技能效果：反弹部分伤害或持续恢复HP！"
-            elif skill_name in ['破甲', '沙尘暴']:
+            elif skill_name in ['金属风暴']:
                 result += "\n技能效果：降低对手防御或命中率！"
-            elif skill_name in ['金属风暴', '熔岩爆发', '海啸', '森林祝福', '地裂']:
+            elif skill_name in ['火焰焚烧', '巨浪淹没', '根须缠绕', '大地堡垒', '金属风暴']:
                 result += "\n技能效果：强大的范围攻击技能！"
             else:
                 result += "\n技能效果：发挥出了不错的效果！"
@@ -1665,4 +1745,320 @@ class QQPetPlugin(Star):
         except Exception as e:
             logger.error(f"显示宠物详细信息失败: {str(e)}")
             yield event.plain_result("显示宠物详细信息失败了~请联系管理员检查日志")
+    
+    @filter.command("探索")
+    async def explore(self, event: AstrMessageEvent):
+        """探索功能，触发随机事件"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 更新宠物状态
+            pet.update_status()
+            
+            # 检查冷却时间（探索有5分钟冷却）
+            now = datetime.now()
+            if hasattr(pet, 'last_explore_time'):
+                time_since_last_explore = (now - pet.last_explore_time).total_seconds() / 60  # 分钟
+                if time_since_last_explore < 5:
+                    remaining_time = int(5 - time_since_last_explore)
+                    yield event.plain_result(f"探索冷却中，请等待{remaining_time}分钟后再试！")
+                    return
+            
+            # 随机事件触发
+            event_type = random.random()
+            
+            # 好事件（20%总概率）
+            if event_type < 0.05:  # 5%概率 - 世外高人
+                result = await self._good_event_wise_man(pet)
+            elif event_type < 0.20:  # 15%概率 - 其他好事件
+                result = await self._good_event_random(pet)
+            # 坏事件（80%概率）
+            else:
+                result = await self._bad_event_battle(pet, user_id)
+            
+            # 更新探索时间
+            pet.last_explore_time = now
+            
+            # 更新数据库
+            self.db.update_pet_data(
+                user_id,
+                coins=pet.coins,
+                exp=pet.exp,
+                hp=pet.hp,
+                hunger=pet.hunger,
+                mood=pet.mood
+            )
+            
+            yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"探索失败: {str(e)}")
+            yield event.plain_result("探索失败了~请联系管理员检查日志")
+    
+    async def _good_event_wise_man(self, pet):
+        """世外高人事件"""
+        coins_reward = 2000
+        exp_reward = random.randint(500, 1000)
+        
+        pet.coins += coins_reward
+        pet.exp += exp_reward
+        
+        # 检查升级
+        level_up_result = ""
+        if pet.exp >= pet.level * 100:
+            old_level = pet.level
+            level_up_result = pet.level_up()
+            if "进化" in level_up_result:
+                level_up_result = f"\n{level_up_result}"
+            else:
+                level_up_result = f"\n{pet.name}从{old_level}级升到了{pet.level}级！"
+        
+        return f"🎭 探索事件：世外高人\n云游时碰到一位世外高人，他见你骨骼精奇，给了你一个储物袋！\n获得：金币【{coins_reward}】，经验【{exp_reward}】{level_up_result}"
+    
+    async def _good_event_random(self, pet):
+        """随机好事件"""
+        events = [
+            self._good_event_grandma,
+            self._good_event_medical_kit,
+            self._good_event_merchant,
+            self._good_event_little_girl
+        ]
+        
+        event_func = random.choice(events)
+        return await event_func(pet)
+    
+    async def _good_event_grandma(self, pet):
+        """老奶奶事件"""
+        coins_reward = random.randint(100, 240)
+        pet.coins += coins_reward
+        return f"👵 探索事件：善良老奶奶\n一个老奶奶见你可怜，给了你一些金币！\n获得：金币【{coins_reward}】"
+    
+    async def _good_event_medical_kit(self, pet):
+        """医疗箱事件"""
+        small_potions = random.randint(20, 50)
+        medium_potions = random.randint(10, 15)
+        large_potions = random.randint(1, 8)
+        
+        user_id = None
+        for uid, p in self.pets.items():
+            if p == pet:
+                user_id = uid
+                break
+        
+        if user_id:
+            self.db.add_item_to_inventory(user_id, "小治疗瓶", small_potions)
+            self.db.add_item_to_inventory(user_id, "中治疗瓶", medium_potions)
+            self.db.add_item_to_inventory(user_id, "大治疗瓶", large_potions)
+        
+        return f"🎁 探索事件：医疗箱\n你在路边看到一个被丢弃的医疗箱！\n获得：小治疗瓶【{small_potions}瓶】，中治疗瓶【{medium_potions}瓶】，大治疗瓶【{large_potions}瓶】"
+    
+    async def _good_event_merchant(self, pet):
+        """商人事件"""
+        small_potions = random.randint(3, 8)
+        
+        user_id = None
+        for uid, p in self.pets.items():
+            if p == pet:
+                user_id = uid
+                break
+        
+        if user_id:
+            self.db.add_item_to_inventory(user_id, "小治疗瓶", small_potions)
+        
+        return f"🏪 探索事件：好心商人\n遇到一个好心的商人，他免费送给你一些治疗瓶！\n获得：小治疗瓶【{small_potions}瓶】"
+    
+    async def _good_event_little_girl(self, pet):
+        """小女孩事件"""
+        food_cans = random.randint(10, 15)
+        
+        user_id = None
+        for uid, p in self.pets.items():
+            if p == pet:
+                user_id = uid
+                break
+        
+        if user_id:
+            self.db.add_item_to_inventory(user_id, "美味罐头", food_cans)
+        
+        return f"👧 探索事件：可爱小女孩\n一个小女孩撞到了你，她给你道歉后送你美味罐头！\n获得：美味罐头【{food_cans}个】"
+    
+    async def _bad_event_battle(self, pet, user_id):
+        """坏事件战斗"""
+        events = [
+            self._bad_event_trap,
+            self._bad_event_goblin,
+            self._bad_event_evil_trainer,
+            self._bad_event_magic_eye_rabbit,
+            self._bad_event_twin_flower_vine
+        ]
+        
+        event_func = random.choice(events)
+        return await event_func(pet, user_id)
+    
+    async def _bad_event_trap(self, pet, user_id):
+        """陷阱事件"""
+        hp_loss = random.randint(20, 50)
+        pet.hp = max(1, pet.hp - hp_loss)  # 至少保留1点血量
+        
+        # 80%概率触发战斗
+        if random.random() < 0.8:
+            return await self._trigger_random_battle(pet, user_id, f"💀 探索事件：陷阱\n你掉进了陷阱！！减少了【{hp_loss}】血量。")
+        else:
+            return f"💀 探索事件：陷阱\n你掉进了陷阱！！减少了【{hp_loss}】血量。"
+    
+    async def _bad_event_goblin(self, pet, user_id):
+        """哥布林事件"""
+        return await self._trigger_random_battle(pet, user_id, "👹 探索事件：哥布林\n血量遇到了哥布林，你不得不和他对战！！！")
+    
+    async def _bad_event_evil_trainer(self, pet, user_id):
+        """邪恶训练师事件"""
+        return await self._trigger_random_battle(pet, user_id, "😈 探索事件：邪恶训练师\n碰到了邪恶训练师，你不得不和他对战！！！")
+    
+    async def _bad_event_magic_eye_rabbit(self, pet, user_id):
+        """魔眼兔事件"""
+        return await self._trigger_random_battle(pet, user_id, "🐰 探索事件：魔眼兔\n你发现了一只魔眼兔，你打算为民除害!")
+    
+    async def _bad_event_twin_flower_vine(self, pet, user_id):
+        """孖花藤事件"""
+        return await self._trigger_random_battle(pet, user_id, "🌿 探索事件：孖花藤\n你看到孖花藤，你怒火中烧，对他发起了战斗！")
+    
+    async def _trigger_random_battle(self, pet, user_id, prefix_message):
+        """触发随机战斗"""
+        # 随机敌人属性
+        enemy_types = ['金', '木', '水', '火', '土']
+        enemy_type = random.choice(enemy_types)
+        
+        # 计算敌人等级
+        if pet.level < 10:
+            level_variation = 1
+        else:
+            level_variation = 8
+        enemy_level = max(1, pet.level + random.randint(-level_variation, level_variation))
+        
+        # 创建敌人宠物
+        enemy_pet = self._create_enemy_pet(enemy_type, enemy_level)
+        
+        # 执行战斗
+        battle_result = await self._execute_battle(pet, enemy_pet, user_id)
+        
+        # 如果胜利，给予奖励
+        if "胜利" in battle_result:
+            reward_result = self._calculate_battle_rewards(pet)
+            return f"{prefix_message}\n{battle_result}\n{reward_result}"
+        else:
+            return f"{prefix_message}\n{battle_result}"
+    
+    def _create_enemy_pet(self, enemy_type, enemy_level):
+        """创建敌人宠物"""
+        # 基础属性
+        base_stats = {
+            "火": {"hp": 600, "attack": 158, "defense": 61, "speed": 125},
+            "水": {"hp": 643, "attack": 121, "defense": 83, "speed": 103},
+            "木": {"hp": 728, "attack": 101, "defense": 124, "speed": 83},
+            "土": {"hp": 813, "attack": 89, "defense": 103, "speed": 73},
+            "金": {"hp": 636, "attack": 144, "defense": 73, "speed": 134}
+        }
+        
+        base = base_stats[enemy_type]
+        
+        # 根据等级调整属性
+        hp = base["hp"] + (enemy_level - 1) * 50
+        attack = base["attack"] + (enemy_level - 1) * 8
+        defense = base["defense"] + (enemy_level - 1) * 5
+        speed = base["speed"] + (enemy_level - 1) * 6
+        
+        # 创建临时宠物对象
+        enemy_pet = type('EnemyPet', (), {
+            'name': f"{enemy_type}属性敌人",
+            'type': enemy_type,
+            'level': enemy_level,
+            'hp': hp,
+            'max_hp': hp,
+            'attack': attack,
+            'defense': defense,
+            'speed': speed,
+            'skills': []
+        })()
+        
+        return enemy_pet
+    
+    async def _execute_battle(self, player_pet, enemy_pet, user_id):
+        """执行战斗逻辑"""
+        # 简化的战斗逻辑
+        battle_log = f"⚔️ 战斗开始！{player_pet.name} VS {enemy_pet.name} (Lv.{enemy_pet.level})\n"
+        
+        # 判断先手
+        if player_pet.speed >= enemy_pet.speed:
+            attacker, defender = player_pet, enemy_pet
+            battle_log += f"{player_pet.name}速度更快，先手攻击！\n"
+        else:
+            attacker, defender = enemy_pet, player_pet
+            battle_log += f"{enemy_pet.name}速度更快，先手攻击！\n"
+        
+        # 战斗回合
+        round_count = 0
+        while player_pet.hp > 0 and enemy_pet.hp > 0 and round_count < 50:
+            round_count += 1
+            battle_log += f"\n--- 第{round_count}回合 ---\n"
+            
+            # 攻击者攻击
+            damage = max(1, attacker.attack - defender.defense)
+            defender.hp = max(0, defender.hp - damage)
+            battle_log += f"{attacker.name}对{defender.name}造成了{damage}点伤害！"
+            
+            if defender.hp <= 0:
+                battle_log += f" {defender.name}被击败了！"
+                break
+            else:
+                battle_log += f" {defender.name}剩余血量：{defender.hp}\n"
+            
+            # 交换攻防
+            attacker, defender = defender, attacker
+        
+        # 判断战斗结果
+        if player_pet.hp > 0:
+            battle_log += f"\n🎉 战斗胜利！{player_pet.name}获得了胜利！"
+            return battle_log
+        else:
+            battle_log += f"\n💀 战斗失败！{player_pet.name}被击败了！"
+            return battle_log
+    
+    def _calculate_battle_rewards(self, pet):
+        """计算战斗奖励"""
+        # 基础奖励（1级）
+        base_exp_min = 18
+        base_exp_max = 24
+        base_coins_min = 40
+        base_coins_max = 120
+        
+        # 根据等级计算奖励
+        level_multiplier = 1.2 ** (pet.level - 1)
+        exp_reward = random.randint(
+            int(base_exp_min * level_multiplier),
+            int(base_exp_max * level_multiplier)
+        )
+        coins_reward = random.randint(base_coins_min, base_coins_max)
+        
+        # 给予奖励
+        pet.exp += exp_reward
+        pet.coins += coins_reward
+        
+        # 检查升级
+        level_up_result = ""
+        if pet.exp >= pet.level * 100:
+            old_level = pet.level
+            level_up_result = pet.level_up()
+            if "进化" in level_up_result:
+                level_up_result = f"\n{level_up_result}"
+            else:
+                level_up_result = f"\n{pet.name}从{old_level}级升到了{pet.level}级！"
+        
+        return f"🏆 战斗奖励：经验【{exp_reward}】，金币【{coins_reward}】{level_up_result}"
 

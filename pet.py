@@ -68,6 +68,12 @@ class Pet:
         self.mood = 50    # 心情 (0-100)
         self.coins = 0    # 金币
         self.skills: List[str] = []
+        self.skill_unlocked = False  # 是否已解锁技能
+        self.burn_turns = 0  # 灼烧效果剩余回合数
+        self.heal_blocked_turns = 0  # 禁疗效果剩余回合数
+        self.defense_boost = 0  # 防御加成
+        self.crit_rate_boost = 0  # 暴击率加成
+        self.revive_used = False  # 复活技能是否已使用
         self.last_updated = datetime.now()
         self.last_battle_time = datetime.now() - timedelta(hours=1)  # 初始设置为1小时前
         self.auto_heal_threshold = 100  # 自动使用治疗瓶的最低血量阈值
@@ -112,6 +118,12 @@ class Pet:
         pet.auto_heal_threshold = data.get('auto_heal_threshold', 100)
         pet.critical_rate = data.get('critical_rate', 0.05)
         pet.critical_damage = data.get('critical_damage', 1.5)
+        pet.skill_unlocked = data.get('skill_unlocked', False)
+        pet.burn_turns = data.get('burn_turns', 0)
+        pet.heal_blocked_turns = data.get('heal_blocked_turns', 0)
+        pet.defense_boost = data.get('defense_boost', 0)
+        pet.crit_rate_boost = data.get('crit_rate_boost', 0)
+        pet.revive_used = data.get('revive_used', False)
         return pet
         
     def to_dict(self) -> Dict[str, Any]:
@@ -134,7 +146,13 @@ class Pet:
             'last_battle_time': self.last_battle_time.isoformat(),
             'auto_heal_threshold': self.auto_heal_threshold,
             'critical_rate': self.critical_rate,
-            'critical_damage': self.critical_damage
+            'critical_damage': self.critical_damage,
+            'skill_unlocked': self.skill_unlocked,
+            'burn_turns': self.burn_turns,
+            'heal_blocked_turns': self.heal_blocked_turns,
+            'defense_boost': self.defense_boost,
+            'crit_rate_boost': self.crit_rate_boost,
+            'revive_used': self.revive_used
         }
         
     def update_status(self):
@@ -241,6 +259,32 @@ class Pet:
             # 非金属性宠物使用基础暴击属性
             self.critical_rate = 0.05
             self.critical_damage = 1.5
+        
+        # 10级解锁技能
+        if self.level >= 10 and not self.skill_unlocked:
+            self.skill_unlocked = True
+            # 根据宠物名称设置对应的技能
+            if self.name == "烈焰":
+                self.skills = ["火焰焚烧"]
+            elif self.name == "碧波兽":
+                self.skills = ["巨浪淹没"]
+            elif self.name == "藤甲虫":
+                self.skills = ["根须缠绕"]
+            elif self.name == "碎裂岩":
+                self.skills = ["大地堡垒"]
+            elif self.name == "金刚":
+                self.skills = ["金属风暴"]
+            # 进化形态也继承技能
+            elif self.name == "炽焰龙":
+                self.skills = ["火焰焚烧"]
+            elif self.name == "瀚海蛟":
+                self.skills = ["巨浪淹没"]
+            elif self.name == "赤镰战甲":
+                self.skills = ["根须缠绕"]
+            elif self.name == "岩脊守护者":
+                self.skills = ["大地堡垒"]
+            elif self.name == "破甲战犀":
+                self.skills = ["金属风暴"]
                 
     def is_alive(self) -> bool:
         """检查宠物是否存活"""
@@ -330,11 +374,11 @@ class Pet:
         """学习新技能"""
         # 根据宠物类型学习不同的技能
         type_skills = {
-            '金': ['金刃', '坚固', '反射', '破甲', '金属风暴'],
-            '木': ['藤鞭', '光合作用', '种子炸弹', '寄生种子', '森林祝福'],
-            '土': ['地震', '岩石封锁', '沙尘暴', '大地守护', '地裂'],
-            '水': ['水炮', '冰冻', '水流冲击', '水雾', '海啸'],
-            '火': ['火焰冲击', '燃烧', '火球', '火焰之墙', '熔岩爆发']
+            '金': ['金属风暴'],
+            '木': ['根须缠绕'],
+            '土': ['大地堡垒'],
+            '水': ['巨浪淹没'],
+            '火': ['火焰焚烧']
         }
 
         # 获取可用技能
