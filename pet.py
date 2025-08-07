@@ -539,6 +539,15 @@ class PetDatabase:
             print(f"critical_damage字段已存在: {e}")
             pass
 
+        # 添加技能解锁字段
+        try:
+            self.cursor.execute('ALTER TABLE pet_data ADD COLUMN skill_unlocked TEXT DEFAULT ""')
+            print("已添加skill_unlocked字段")
+        except sqlite3.OperationalError as e:
+            # 列已存在，忽略错误
+            print(f"skill_unlocked字段已存在: {e}")
+            pass
+
         # 创建商店物品表
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS shop_items (
@@ -755,7 +764,7 @@ class PetDatabase:
         self.cursor.execute('''
             SELECT user_id, pet_name, pet_type, owner, level, exp, hp, attack, defense, speed, 
                    hunger, mood, coins, skills, last_updated, last_battle_time, auto_heal_threshold,
-                   critical_rate, critical_damage
+                   critical_rate, critical_damage, skill_unlocked
             FROM pet_data 
             WHERE user_id = ?
         ''', (user_id,))
@@ -765,7 +774,8 @@ class PetDatabase:
             return None
 
         columns = ['user_id', 'pet_name', 'pet_type', 'owner', 'level', 'exp', 'hp', 'attack', 'defense', 'speed', 
-                  'hunger', 'mood', 'coins', 'skills', 'last_updated', 'last_battle_time', 'auto_heal_threshold']
+                  'hunger', 'mood', 'coins', 'skills', 'last_updated', 'last_battle_time', 'auto_heal_threshold',
+                  'critical_rate', 'critical_damage', 'skill_unlocked']
         data = dict(zip(columns, row))
 
         # 解析技能列表
