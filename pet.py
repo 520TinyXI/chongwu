@@ -548,6 +548,51 @@ class PetDatabase:
             print(f"skill_unlocked字段已存在: {e}")
             pass
 
+        # 添加灼烧效果字段
+        try:
+            self.cursor.execute('ALTER TABLE pet_data ADD COLUMN burn_turns INTEGER DEFAULT 0')
+            print("已添加burn_turns字段")
+        except sqlite3.OperationalError as e:
+            # 列已存在，忽略错误
+            print(f"burn_turns字段已存在: {e}")
+            pass
+
+        # 添加禁疗效果字段
+        try:
+            self.cursor.execute('ALTER TABLE pet_data ADD COLUMN heal_blocked_turns INTEGER DEFAULT 0')
+            print("已添加heal_blocked_turns字段")
+        except sqlite3.OperationalError as e:
+            # 列已存在，忽略错误
+            print(f"heal_blocked_turns字段已存在: {e}")
+            pass
+
+        # 添加防御加成字段
+        try:
+            self.cursor.execute('ALTER TABLE pet_data ADD COLUMN defense_boost INTEGER DEFAULT 0')
+            print("已添加defense_boost字段")
+        except sqlite3.OperationalError as e:
+            # 列已存在，忽略错误
+            print(f"defense_boost字段已存在: {e}")
+            pass
+
+        # 添加暴击率加成字段
+        try:
+            self.cursor.execute('ALTER TABLE pet_data ADD COLUMN crit_rate_boost INTEGER DEFAULT 0')
+            print("已添加crit_rate_boost字段")
+        except sqlite3.OperationalError as e:
+            # 列已存在，忽略错误
+            print(f"crit_rate_boost字段已存在: {e}")
+            pass
+
+        # 添加复活使用标记字段
+        try:
+            self.cursor.execute('ALTER TABLE pet_data ADD COLUMN revive_used INTEGER DEFAULT 0')
+            print("已添加revive_used字段")
+        except sqlite3.OperationalError as e:
+            # 列已存在，忽略错误
+            print(f"revive_used字段已存在: {e}")
+            pass
+
         # 创建商店物品表
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS shop_items (
@@ -764,7 +809,8 @@ class PetDatabase:
         self.cursor.execute('''
             SELECT user_id, pet_name, pet_type, owner, level, exp, hp, attack, defense, speed, 
                    hunger, mood, coins, skills, last_updated, last_battle_time, auto_heal_threshold,
-                   critical_rate, critical_damage, skill_unlocked
+                   critical_rate, critical_damage, skill_unlocked, burn_turns, heal_blocked_turns,
+                   defense_boost, crit_rate_boost, revive_used
             FROM pet_data 
             WHERE user_id = ?
         ''', (user_id,))
@@ -775,7 +821,8 @@ class PetDatabase:
 
         columns = ['user_id', 'pet_name', 'pet_type', 'owner', 'level', 'exp', 'hp', 'attack', 'defense', 'speed', 
                   'hunger', 'mood', 'coins', 'skills', 'last_updated', 'last_battle_time', 'auto_heal_threshold',
-                  'critical_rate', 'critical_damage', 'skill_unlocked']
+                  'critical_rate', 'critical_damage', 'skill_unlocked', 'burn_turns', 'heal_blocked_turns',
+                  'defense_boost', 'crit_rate_boost', 'revive_used']
         data = dict(zip(columns, row))
 
         # 解析技能列表
