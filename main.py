@@ -1,1766 +1,2063 @@
-import random
-import asyncio
+# -*- coding: utf-8 -*-
 import os
-import json
-import datetime
-import aiohttp
-import urllib.parse
+import random
 import logging
-from PIL import Image as PILImage
-from PIL import ImageDraw as PILImageDraw
-from PIL import ImageFont as PILImageFont
-from astrbot.api.all import AstrMessageEvent, CommandResult, Context, Image, Plain, MessageChain
-import astrbot.api.event.filter as filter
-from astrbot.api.star import register, Star
+import json
+from typing import Dict, Any, List
+from datetime import datetime, timedelta
+from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.star import Context, Star, register
+from astrbot.api import logger
+import os
+import sys
+import json
+import sqlite3
+from PIL import Image, ImageDraw, ImageFont
+from typing import Dict, Any, List, Optional, Union
+from datetime import datetime
+from .pet import Pet, PetDatabase
 
-logger = logging.getLogger("astrbot")
-
-
-@register("D-G-N-C-J", "Tinyxi", "", "", "")
-class Main(Star):
-    def __init__(self, context: Context) -> None:
-        super().__init__(context)
-        self.PLUGIN_NAME = "astrbot_plugin_essential"
-        PLUGIN_NAME = self.PLUGIN_NAME
-        path = os.path.abspath(os.path.dirname(__file__))
-        self.mc_html_tmpl = open(
-            path + "/templates/mcs.html", "r", encoding="utf-8"
-        ).read()
-        self.what_to_eat_data: list = json.loads(
-            open(path + "/resources/food.json", "r", encoding="utf-8").read()
-        )["data"]
-
-        if not os.path.exists(f"data/{PLUGIN_NAME}_data.json"):
-            with open(f"data/{PLUGIN_NAME}_data.json", "w", encoding="utf-8") as f:
-                f.write(json.dumps({}, ensure_ascii=False, indent=2))
-        with open(f"data/{PLUGIN_NAME}_data.json", "r", encoding="utf-8") as f:
-            self.data = json.loads(f.read())
-        self.good_morning_data = self.data.get("good_morning", {})
-
-        # moe
-        self.moe_urls = [
-            "https://t.mwm.moe/pc/",
-            "https://t.mwm.moe/mp",
-            "https://www.loliapi.com/acg/",
-            "https://www.loliapi.com/acg/pc/",
-        ]
-
-        self.search_anmime_demand_users = {}
-        self.daily_sleep_cache = {}
-        self.good_morning_cd = {} 
-
-    def time_convert(self, t):
-        m, s = divmod(t, 60)
-        return f"{int(m)}分{int(s)}秒"
+# PetImageGenerator类
+class PetImageGenerator:
+    def __init__(self, plugin_dir: str):
+        self.plugin_dir = plugin_dir
+        self.bg_image = os.path.join(plugin_dir, "assets", "background.png")
+        self.font_path = os.path.join(plugin_dir, "assets", "font.ttf")
+        self.output_dir = os.path.join(plugin_dir, "temp")
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+        
+        # 检查并修复背景图片
+        self._check_and_fix_background()
     
-    def get_cached_sleep_count(self, umo_id: str, date_str: str) -> int:
-        """获取缓存的睡觉人数"""
-        if umo_id not in self.daily_sleep_cache:
-            self.daily_sleep_cache[umo_id] = {}
-        return self.daily_sleep_cache[umo_id].get(date_str, -1)
-
-    def update_sleep_cache(self, umo_id: str, date_str: str, count: int):
-        """更新睡觉人数缓存"""
-        if umo_id not in self.daily_sleep_cache:
-            self.daily_sleep_cache[umo_id] = {}
-        self.daily_sleep_cache[umo_id][date_str] = count
-
-    def invalidate_sleep_cache(self, umo_id: str, date_str: str):
-            """使缓存失效"""
-            if umo_id in self.daily_sleep_cache and date_str in self.daily_sleep_cache[umo_id]:
-                del self.daily_sleep_cache[umo_id][date_str]
-
-    def check_good_morning_cd(self, user_id: str, current_time: datetime.datetime) -> bool:
-        """检查用户是否在CD中，返回True表示在CD中"""
-        if user_id not in self.good_morning_cd:
-            return False
-        
-        last_time = self.good_morning_cd[user_id]
-        time_diff = (current_time - last_time).total_seconds()
-        return time_diff < 1800  # 硬编码30分钟
-
-    def update_good_morning_cd(self, user_id: str, current_time: datetime.datetime):
-        """更新用户的CD时间"""
-        self.good_morning_cd[user_id] = current_time
-
-    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
-    async def handle_search_anime(self, message: AstrMessageEvent):
-        """检查是否有搜番请求"""
-        sender = message.get_sender_id()
-        if sender in self.search_anmime_demand_users:
-            message_obj = message.message_obj
-            url = "https://api.trace.moe/search?anilistInfo&url="
-            image_obj = None
-            for i in message_obj.message:
-                if isinstance(i, Image):
-                    image_obj = i
-                    break
-            try:
-                try:
-                    # 需要经过url encode
-                    image_url = urllib.parse.quote(image_obj.url)
-                    url += image_url
-                except BaseException as _:
-                    if sender in self.search_anmime_demand_users:
-                        del self.search_anmime_demand_users[sender]
-                    return CommandResult().error(
-                        f"发现不受本插件支持的图片数据：{type(image_obj)}，插件无法解析。"
-                    )
-
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url) as resp:
-                        if resp.status != 200:
-                            if sender in self.search_anmime_demand_users:
-                                del self.search_anmime_demand_users[sender]
-                            return CommandResult().error("请求失败")
-                        data = await resp.json()
-
-                if data["result"] and len(data["result"]) > 0:
-                    # 番剧时间转换为x分x秒
-                    data["result"][0]["from"] = self.time_convert(
-                        data["result"][0]["from"]
-                    )
-                    data["result"][0]["to"] = self.time_convert(data["result"][0]["to"])
-
-                    warn = ""
-                    if float(data["result"][0]["similarity"]) < 0.8:
-                        warn = "相似度过低，可能不是同一番剧。建议：相同尺寸大小的截图; 去除四周的黑边\n\n"
-                    if sender in self.search_anmime_demand_users:
-                        del self.search_anmime_demand_users[sender]
-                    return CommandResult(
-                        chain=[
-                            Plain(
-                                f"{warn}番名: {data['result'][0]['anilist']['title']['native']}\n相似度: {data['result'][0]['similarity']}\n剧集: 第{data['result'][0]['episode']}集\n时间: {data['result'][0]['from']} - {data['result'][0]['to']}\n精准空降截图:"
-                            ),
-                            Image.fromURL(data["result"][0]["image"]),
-                        ],
-                        use_t2i_=False,
-                    )
-                else:
-                    if sender in self.search_anmime_demand_users:
-                        del self.search_anmime_demand_users[sender]
-                    return CommandResult(True, False, [Plain("没有找到番剧")], "sf")
-            except Exception as e:
-                raise e
-
-    @filter.command("喜报")
-    async def congrats(self, message: AstrMessageEvent):
-        """喜报生成器"""
-        msg = message.message_str.replace("喜报", "").strip()
-        for i in range(20, len(msg), 20):
-            msg = msg[:i] + "\n" + msg[i:]
-
-        path = os.path.abspath(os.path.dirname(__file__))
-        bg = path + "/congrats.jpg"
-        img = PILImage.open(bg)
-        draw = PILImageDraw.Draw(img)
-        font = PILImageFont.truetype(path + "/simhei.ttf", 65)
-
-        # Calculate the width and height of the text
-        text_width, text_height = draw.textbbox((0, 0), msg, font=font)[2:4]
-
-        # Calculate the starting position of the text to center it.
-        x = (img.size[0] - text_width) / 2
-        y = (img.size[1] - text_height) / 2
-
-        draw.text(
-            (x, y),
-            msg,
-            font=font,
-            fill=(255, 0, 0),
-            stroke_width=3,
-            stroke_fill=(255, 255, 0),
-        )
-
-        img.save("congrats_result.jpg")
-        return CommandResult().file_image("congrats_result.jpg")
-
-    @filter.command("查询天气")
-    async def weather_query(self, message: AstrMessageEvent):
-        """天气查询功能"""
-        message_str = message.message_str.replace("查询天气", "").strip()
-        
-        if not message_str:
-            return CommandResult().error("正确指令：查询天气 地区")
-        
-        city = message_str
-        
+    def _check_and_fix_background(self):
+        """检查并修复背景图片"""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"http://api.yuxli.cn/api/tianqi.php?msg={urllib.parse.quote(city)}&b=1") as resp:
-                    if resp.status == 200:
-                        result = await resp.text()
-                        # 解析API返回的天气信息
-                        weather_data = self.parse_weather_data(result)
-                        return CommandResult(chain=[Plain(weather_data)])
-                    else:
-                        return CommandResult().error(f"获取天气信息失败，错误码：{resp.status}")
-        except Exception as e:
-            return CommandResult().error(f"查询天气信息时出现错误：{str(e)}")
-    
-    def parse_weather_data(self, api_result):
-        """解析天气API返回的数据并格式化输出"""
-        # 解析API返回的数据，提取城市、日期、温度、天气、风度、空气质量信息
-        # 按照用户要求的格式输出
-        
-        # 示例解析逻辑，根据实际API返回格式调整
-        parts = api_result.split('☁.')
-        formatted_output = ""
-        
-        i = 1
-        while i < len(parts):
-            part = parts[i]
-            if part.startswith("查询："):
-                city = part.replace("查询：", "").strip()
-                formatted_output += f"☁城市：{city}\n"
-            elif part.startswith("日期："):
-                date = part.replace("日期：", "").strip()
-                formatted_output += f"☁日期：{date}\n"
-            elif part.startswith("温度："):
-                temp = part.replace("温度：", "").strip()
-                formatted_output += f"☁温度：{temp}\n"
-            elif part.startswith("天气："):
-                weather = part.replace("天气：", "").strip()
-                formatted_output += f"☁天气：{weather}\n"
-            elif part.startswith("风度："):
-                wind = part.replace("风度：", "").strip()
-                formatted_output += f"☁风度：{wind}\n"
-            elif part.startswith("空气质量："):
-                air_quality = part.replace("空气质量：", "").strip()
-                formatted_output += f"☁空气质量：{air_quality}\n\n"
-            i += 1
-        
-        return formatted_output.strip()
-
-    @filter.command("农历查询")
-    async def lunar_calendar_query(self, message: AstrMessageEvent):
-        """农历查询功能"""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get("http://api.yuxli.cn/api/nongli.php") as resp:
-                    if resp.status == 200:
-                        result = await resp.text()
-                        # 将换行符替换为空格，实现单行输出
-                        formatted_result = result.replace('\n', ' ').strip()
-                        return CommandResult(chain=[Plain(formatted_result)])
-                    else:
-                        return CommandResult().error(f"获取农历信息失败，错误码：{resp.status}")
-        except Exception as e:
-            return CommandResult().error(f"查询农历信息时出现错误：{str(e)}")
-
-    @filter.command("悲报")
-    async def uncongrats(self, message: AstrMessageEvent):
-        """悲报生成器"""
-        msg = message.message_str.replace("悲报", "").strip()
-        for i in range(20, len(msg), 20):
-            msg = msg[:i] + "\n" + msg[i:]
-
-        path = os.path.abspath(os.path.dirname(__file__))
-        bg = path + "/uncongrats.jpg"
-        img = PILImage.open(bg)
-        draw = PILImageDraw.Draw(img)
-        font = PILImageFont.truetype(path + "/simhei.ttf", 65)
-
-        # Calculate the width and height of the text
-        text_width, text_height = draw.textbbox((0, 0), msg, font=font)[2:4]
-
-        # Calculate the starting position of the text to center it.
-        x = (img.size[0] - text_width) / 2
-        y = (img.size[1] - text_height) / 2
-
-        draw.text(
-            (x, y),
-            msg,
-            font=font,
-            fill=(0, 0, 0),
-            stroke_width=3,
-            stroke_fill=(255, 255, 255),
-        )
-
-        img.save("uncongrats_result.jpg")
-        return CommandResult().file_image("uncongrats_result.jpg")
-
-    @filter.command("随机动漫图片")
-    async def get_moe(self, message: AstrMessageEvent):
-        """随机动漫图片"""
-        shuffle = random.sample(self.moe_urls, len(self.moe_urls))
-        for url in shuffle:
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url) as resp:
-                        if resp.status != 200:
-                            return CommandResult().error(f"获取图片失败: {resp.status}")
-                        data = await resp.read()
-                        break
-            except Exception as e:
-                logger.error(f"从 {url} 获取图片失败: {e}。正在尝试下一个API。")
-                continue
-        # 保存图片到本地
-        try:
-            with open("moe.jpg", "wb") as f:
-                f.write(data)
-            return CommandResult().file_image("moe.jpg")
-
-        except Exception as e:
-            return CommandResult().error(f"保存图片失败: {e}")
-
-    @filter.command("搜番")
-    async def get_search_anime(self, message: AstrMessageEvent):
-        """以图搜番"""
-        sender = message.get_sender_id()
-        if sender in self.search_anmime_demand_users:
-            yield message.plain_result("正在等你发图喵，请不要重复发送")
-        self.search_anmime_demand_users[sender] = False
-        yield message.plain_result("请在 30 喵内发送一张图片让我识别喵")
-        await asyncio.sleep(30)
-        if sender in self.search_anmime_demand_users:
-            if self.search_anmime_demand_users[sender]:
-                del self.search_anmime_demand_users[sender]
+            # 检查背景图片是否存在且有效
+            if os.path.exists(self.bg_image):
+                # 尝试打开背景图片
+                img = Image.open(self.bg_image)
+                img.verify()  # 验证图片完整性
+                print(f"背景图片正常: {self.bg_image}")
                 return
-            del self.search_anmime_demand_users[sender]
-            yield message.plain_result("🧐你没有发送图片，搜番请求已取消了喵")
-
-    @filter.command("mcs")
-    async def mcs(self, message: AstrMessageEvent):
-        """查mc服务器"""
-        message_str = message.message_str
-        if message_str == "mcs":
-            return CommandResult().error("查 Minecraft 服务器。格式: /mcs [服务器地址]")
-        ip = message_str.replace("mcs", "").strip()
-        url = f"https://api.mcsrvstat.us/2/{ip}"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    return CommandResult().error("请求失败")
-                data = await resp.json()
-                logger.info(f"获取到 {ip} 的服务器信息。")
-
-        # result = await context.image_renderer.render_custom_template(self.mc_html_tmpl, data, return_url=True)
-        motd = "查询失败"
-        if (
-            "motd" in data
-            and isinstance(data["motd"], dict)
-            and isinstance(data["motd"].get("clean"), list)
-        ):
-            motd_lines = [
-                i.strip()
-                for i in data["motd"]["clean"]
-                if isinstance(i, str) and i.strip()
-            ]
-            motd = "\n".join(motd_lines) if motd_lines else "查询失败"
-
-        players = "查询失败"
-        version = "查询失败"
-        if "error" in data:
-            return CommandResult().error(f"查询失败: {data['error']}")
-
-        name_list = []
-
-        if "players" in data:
-            players = f"{data['players']['online']}/{data['players']['max']}"
-
-            if "list" in data["players"]:
-                name_list = data["players"]["list"]
-
-        if "version" in data:
-            version = str(data["version"])
-
-        status = "🟢" if data["online"] else "🔴"
-
-        name_list_str = ""
-        if name_list:
-            name_list_str = "\n".join(name_list)
-        if not name_list_str:
-            name_list_str = "无玩家在线"
-
-        result_text = (
-            "【查询结果】\n"
-            f"状态: {status}\n"
-            f"服务器IP: {ip}\n"
-            f"版本: {version}\n"
-            f"MOTD: {motd}"
-            f"玩家人数: {players}\n"
-            f"在线玩家: \n{name_list_str}"
-        )
-
-        return CommandResult().message(result_text).use_t2i(False)
-
-    @filter.command("原神随机图片")
-    async def genshin_random_image(self, message: AstrMessageEvent):
-        """原神随机图片"""
-        try:
-            # 设置User-Agent模拟浏览器访问
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.get("http://api.xiaomei520.sbs/api/元神/?", headers=headers) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error(f"获取图片失败: {resp.status}")
-                    
-                    data = await resp.read()
-            
-            # 保存图片到本地
-            try:
-                with open("genshin_image.jpg", "wb") as f:
-                    f.write(data)
-                return CommandResult().file_image("genshin_image.jpg")
-            except Exception as e:
-                return CommandResult().error(f"保存图片失败: {e}")
-                
         except Exception as e:
-            return CommandResult().error(f"请求失败: {e}")
+            print(f"背景图片损坏或无法打开: {e}")
+        
+        # 创建新的背景图片
+        self._create_new_background()
+    
+    def _create_new_background(self):
+        """创建新的背景图片"""
+        # 确保assets目录存在
+        assets_dir = os.path.join(self.plugin_dir, "assets")
+        if not os.path.exists(assets_dir):
+            os.makedirs(assets_dir)
+        
+        # 创建纯白色背景
+        W, H = 800, 600
+        bg = Image.new('RGB', (W, H), (255, 255, 255))  # 纯白色
+        
+        # 保存背景图片
+        bg.save(self.bg_image)
+        print(f"新的背景图片已创建: {self.bg_image}")
 
-    @filter.command("蔚蓝档案随机图片")
-    async def blue_archive_random_image(self, message: AstrMessageEvent):
-        """蔚蓝档案随机图片"""
-        message_str = message.message_str.replace("蔚蓝档案随机图片", "").strip()
-        
-        # 检查参数
-        if not message_str:
-            return CommandResult().error("正确指令：蔚蓝档案随机图片 横/竖/自适应")
-        
-        # 验证参数
-        valid_params = ["横", "竖", "自适应"]
-        if message_str not in valid_params:
-            return CommandResult().error("正确指令：蔚蓝档案随机图片 横/竖/自适应")
-        
-        # 映射参数到API参数
-        param_mapping = {
-            "横": "horizontal",
-            "竖": "vertical", 
-            "自适应": "adaptive"
-        }
-        
-        api_param = param_mapping[message_str]
-        url = f"https://rba.kanostar.top/adapt?type={api_param}"
-        
+    async def create_pet_image(self, text: str, pet_type: str = None, font_size: int = 36) -> Union[str, None]:
+        """生成宠物信息图片"""
         try:
-            # 设置User-Agent模拟浏览器访问
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error(f"获取图片失败: {resp.status}")
-                    
-                    data = await resp.read()
-            
-            # 保存图片到本地
+            # 调整背景图片大小为800x600
+            W, H = 800, 600
+            bg = Image.open(self.bg_image)
+            bg = bg.resize((W, H))
+
+            draw = ImageDraw.Draw(bg)
+
+            # 设置字体
             try:
-                with open("blue_archive_image.jpg", "wb") as f:
-                    f.write(data)
-                return CommandResult().file_image("blue_archive_image.jpg")
-            except Exception as e:
-                return CommandResult().error(f"保存图片失败: {e}")
-                
-        except Exception as e:
-            return CommandResult().error(f"请求失败: {e}")
-
-    @filter.command("一言")
-    async def hitokoto(self, message: AstrMessageEvent):
-        """来一条一言"""
-        url = "https://v1.hitokoto.cn"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    return CommandResult().error("请求失败")
-                data = await resp.json()
-        return CommandResult().message(data["hitokoto"] + " —— " + data["from"])
-
-    async def save_what_eat_data(self):
-        path = os.path.abspath(os.path.dirname(__file__))
-        with open(path + "/resources/food.json", "w", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {"data": self.what_to_eat_data}, ensure_ascii=False, indent=2
-                )
-            )
-
-    @filter.command("今天吃什么")
-    async def what_to_eat(self, message: AstrMessageEvent):
-        """今天吃什么"""
-        if "添加" in message.message_str:
-            l = message.message_str.split(" ")
-            # 今天吃什么 添加 xxx xxx xxx
-            if len(l) < 3:
-                return CommandResult().error(
-                    "格式：今天吃什么 添加 [食物1] [食物2] ..."
-                )
-            self.what_to_eat_data += l[2:]  # 添加食物
-            await self.save_what_eat_data()
-            return CommandResult().message("添加成功")
-        elif "删除" in message.message_str:
-            l = message.message_str.split(" ")
-            # 今天吃什么 删除 xxx xxx xxx
-            if len(l) < 3:
-                return CommandResult().error(
-                    "格式：今天吃什么 删除 [食物1] [食物2] ..."
-                )
-            for i in l[2:]:
-                if i in self.what_to_eat_data:
-                    self.what_to_eat_data.remove(i)
-            await self.save_what_eat_data()
-            return CommandResult().message("删除成功")
-
-        ret = f"今天吃 {random.choice(self.what_to_eat_data)}！"
-        return CommandResult().message(ret)
-
-    @filter.command("喜加一")
-    async def epic_free_game(self, message: AstrMessageEvent):
-        """EPIC 喜加一"""
-        url = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions"
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    return CommandResult().error("请求失败")
-                data = await resp.json()
-
-        games = []
-        upcoming = []
-
-        for game in data["data"]["Catalog"]["searchStore"]["elements"]:
-            title = game.get("title", "未知")
-            try:
-                if not game.get("promotions"):
-                    continue
-                original_price = game["price"]["totalPrice"]["fmtPrice"][
-                    "originalPrice"
-                ]
-                discount_price = game["price"]["totalPrice"]["fmtPrice"][
-                    "discountPrice"
-                ]
-                promotions = game["promotions"]["promotionalOffers"]
-                upcoming_promotions = game["promotions"]["upcomingPromotionalOffers"]
-
-                if promotions:
-                    promotion = promotions[0]["promotionalOffers"][0]
+                if os.path.exists(self.font_path):
+                    font_title = ImageFont.truetype(self.font_path, 40)
+                    font_text = ImageFont.truetype(self.font_path, 28)
                 else:
-                    promotion = upcoming_promotions[0]["promotionalOffers"][0]
-                start = promotion["startDate"]
-                end = promotion["endDate"]
-                # 2024-09-19T15:00:00.000Z
-                start_utc8 = datetime.datetime.strptime(
-                    start, "%Y-%m-%dT%H:%M:%S.%fZ"
-                ) + datetime.timedelta(hours=8)
-                start_human = start_utc8.strftime("%Y-%m-%d %H:%M")
-                end_utc8 = datetime.datetime.strptime(
-                    end, "%Y-%m-%dT%H:%M:%S.%fZ"
-                ) + datetime.timedelta(hours=8)
-                end_human = end_utc8.strftime("%Y-%m-%d %H:%M")
-                discount = float(promotion["discountSetting"]["discountPercentage"])
-                if discount != 0:
-                    # 过滤掉不是免费的游戏
-                    continue
+                    font_title = ImageFont.load_default()
+                    font_text = ImageFont.load_default()
+            except Exception:
+                font_title = ImageFont.load_default()
+                font_text = ImageFont.load_default()
 
-                if promotions:
-                    games.append(
-                        f"【{title}】\n原价: {original_price} | 现价: {discount_price}\n活动时间: {start_human} - {end_human}"
-                    )
-                else:
-                    upcoming.append(
-                        f"【{title}】\n原价: {original_price} | 现价: {discount_price}\n活动时间: {start_human} - {end_human}"
-                    )
-
-            except BaseException as e:
-                raise e
-                games.append(f"处理 {title} 时出现错误")
-
-        if len(games) == 0:
-            return CommandResult().message("暂无免费游戏")
-        return (
-            CommandResult()
-            .message(
-                "【EPIC 喜加一】\n"
-                + "\n\n".join(games)
-                + "\n\n"
-                + "【即将免费】\n"
-                + "\n\n".join(upcoming)
-            )
-            .use_t2i(False)
-        )
-
-    @filter.command("生成奖状")
-    async def generate_certificate(self, message: AstrMessageEvent):
-        """在线奖状生成器"""
-        # 解析参数：生成奖状 name title classname
-        msg = message.message_str.replace("生成奖状", "").strip()
-        parts = msg.split()
-        
-        if len(parts) < 3:
-            return CommandResult().error("示例：生成奖状 良子 三好学生 阳光小学9年级4班")
-        
-        name = parts[0]
-        title = parts[1]
-        # classname为剩余所有部分
-        classname = " ".join(parts[2:])
-        
-        if not classname:
-            return CommandResult().error("示例：生成奖状 良子 三好学生 阳光小学9年级4班")
-        
-        # 检查参数长度限制
-        if len(name) > 3:
-            return CommandResult().error("获奖人姓名不能超过3位字符")
-        if len(title) > 9:
-            return CommandResult().error("奖项名不能超过9位字符")
-        
-        # 构建请求URL
-        base_url = "https://api.pearktrue.cn/api/certcommend/"
-        params = f"name={name}&title={title}&classname={classname}"
-        url = f"{base_url}?{params}"
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error("请求奖状生成API失败")
-                    
-                    # 检查响应内容类型
-                    content_type = resp.headers.get('Content-Type', '')
-                    if 'image' in content_type:
-                        # 如果直接返回图片数据
-                        image_data = await resp.read()
-                        # 保存图片到临时文件
-                        temp_path = "certificate_result.jpg"
-                        with open(temp_path, "wb") as f:
-                            f.write(image_data)
-                        return CommandResult().file_image(temp_path)
-                    else:
-                        # 如果返回JSON，检查错误信息
-                        try:
-                            data = await resp.json()
-                            if data.get("code") != 200:
-                                return CommandResult().error(f"生成奖状失败：{data.get('msg', '未知错误')}")
-                        except:
-                            pass
-                        return CommandResult().error("奖状生成API返回格式异常")
-                        
-        except Exception as e:
-            logger.error(f"生成奖状时发生错误：{e}")
-            return CommandResult().error(f"生成奖状时发生错误：{str(e)}")
-
-    @filter.command("高铁动车车票查询")
-    async def highspeed_ticket_query(self, message: AstrMessageEvent):
-        """高铁动车车票查询器"""
-        # 解析参数：高铁动车车票查询 出发地 终点地 查询时间（可选）
-        msg = message.message_str.replace("高铁动车车票查询", "").strip()
-        
-        if not msg:
-            return CommandResult().error("示例：高铁动车车票查询 北京 上海 2024-01-28（可选填日期，不填则查询今日）")
-        
-        # 分割参数
-        parts = msg.split()
-        if len(parts) < 2:
-            return CommandResult().error("示例：高铁动车车票查询 北京 上海 2024-01-28（可选填日期，不填则查询今日）")
-        
-        from_city = parts[0]
-        to_city = parts[1]
-        time_param = parts[2] if len(parts) > 2 else ""
-        
-        api_url = "https://api.pearktrue.cn/api/highspeedticket"
-        params = f"from={urllib.parse.quote(from_city)}&to={urllib.parse.quote(to_city)}"
-        if time_param:
-            params += f"&time={urllib.parse.quote(time_param)}"
-        url = f"{api_url}?{params}"
-        
-        try:
-            logger.info(f"正在查询车票信息，URL：{url}")
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    logger.info(f"API响应状态码：{resp.status}")
-                    if resp.status != 200:
-                        return CommandResult().error(f"查询车票信息失败，服务器状态码：{resp.status}")
-                    
-                    data = await resp.json()
-                    logger.info(f"API返回数据：{data}")
-                    
-                    if data.get("code") == 200 and "data" in data and len(data["data"]) > 0:
-                        # 取第一个结果
-                        result = data["data"][0]
-                        ticket_info = result.get("ticket_info", [{}])[0] if result.get("ticket_info") else {}
-                        
-                        # 构建输出结果
-                        output = f"状态信息：{data.get('msg', '')}\n"
-                        output += f"出发地：{data.get('from', '')}\n"
-                        output += f"终点地：{data.get('to', '')}\n"
-                        output += f"查询时间：{data.get('time', '')}\n"
-                        output += f"获取数量：{data.get('count', '')}\n"
-                        output += f"返回内容：{data.get('data', '')}\n"
-                        output += f"车辆类型：{result.get('traintype', '')}\n"
-                        output += f"车辆代码：{result.get('trainumber', '')}\n"
-                        output += f"出发点：{result.get('departstation', '')}\n"
-                        output += f"终点站：{result.get('arrivestation', '')}\n"
-                        output += f"出发时间：{result.get('departtime', '')}\n"
-                        output += f"到达时间：{result.get('arrivetime', '')}\n"
-                        output += f"过程时间：{result.get('runtime', '')}\n"
-                        output += f"车辆车票信息：{result.get('ticket_info', '')}\n"
-                        output += f"座次等级：{ticket_info.get('seatname', '')}\n"
-                        output += f"车票状态：{ticket_info.get('bookable', '')}\n"
-                        output += f"车票价格：{ticket_info.get('seatprice', '')}\n"
-                        output += f"剩余车票数量：{ticket_info.get('seatinventory', '')}"
-                        
-                        return CommandResult().message(output)
-                    else:
-                        # 如果带日期参数查询失败，尝试不带日期的查询
-                        if time_param:
-                            logger.info("带日期参数查询失败，尝试不带日期的查询")
-                            fallback_url = f"{api_url}?from={urllib.parse.quote(from_city)}&to={urllib.parse.quote(to_city)}"
-                            logger.info(f"重试URL：{fallback_url}")
-                            
-                            async with session.get(fallback_url) as fallback_resp:
-                                if fallback_resp.status != 200:
-                                    error_msg = data.get('msg', '未知错误')
-                                    logger.error(f"API返回错误：code={data.get('code')}, msg={error_msg}")
-                                    return CommandResult().error(f"未找到车票信息：{error_msg}")
-                                
-                                fallback_data = await fallback_resp.json()
-                                logger.info(f"重试API返回数据：{fallback_data}")
-                                
-                                if fallback_data.get("code") == 200 and "data" in fallback_data and len(fallback_data["data"]) > 0:
-                                    # 取第一个结果
-                                    result = fallback_data["data"][0]
-                                    ticket_info = result.get("ticket_info", [{}])[0] if result.get("ticket_info") else {}
-                                    
-                                    # 构建输出结果
-                                    output = f"状态信息：{fallback_data.get('msg', '')}\n"
-                                    output += f"出发地：{fallback_data.get('from', '')}\n"
-                                    output += f"终点地：{fallback_data.get('to', '')}\n"
-                                    output += f"查询时间：{fallback_data.get('time', '')}\n"
-                                    output += f"获取数量：{fallback_data.get('count', '')}\n"
-                                    output += f"返回内容：{fallback_data.get('data', '')}\n"
-                                    output += f"车辆类型：{result.get('traintype', '')}\n"
-                                    output += f"车辆代码：{result.get('trainumber', '')}\n"
-                                    output += f"出发点：{result.get('departstation', '')}\n"
-                                    output += f"终点站：{result.get('arrivestation', '')}\n"
-                                    output += f"出发时间：{result.get('departtime', '')}\n"
-                                    output += f"到达时间：{result.get('arrivetime', '')}\n"
-                                    output += f"过程时间：{result.get('runtime', '')}\n"
-                                    output += f"车辆车票信息：{result.get('ticket_info', '')}\n"
-                                    output += f"座次等级：{ticket_info.get('seatname', '')}\n"
-                                    output += f"车票状态：{ticket_info.get('bookable', '')}\n"
-                                    output += f"车票价格：{ticket_info.get('seatprice', '')}\n"
-                                    output += f"剩余车票数量：{ticket_info.get('seatinventory', '')}"
-                                    
-                                    return CommandResult().message(output)
-                                else:
-                                    error_msg = fallback_data.get('msg', '未知错误')
-                                    logger.error(f"重试API返回错误：code={fallback_data.get('code')}, msg={error_msg}")
-                                    return CommandResult().error(f"未找到车票信息：{error_msg}")
-                        else:
-                            error_msg = data.get('msg', '未知错误')
-                            logger.error(f"API返回错误：code={data.get('code')}, msg={error_msg}")
-                            return CommandResult().error(f"未找到车票信息：{error_msg}")
-                        
-        except Exception as e:
-            logger.error(f"查询车票信息时发生错误：{e}")
-            return CommandResult().error(f"查询车票信息时发生错误：{str(e)}")
-
-    @filter.command("全国高校查询")
-    async def college_query(self, message: AstrMessageEvent):
-        """全国高校查询器"""
-        # 解析参数：全国高校查询 keyword
-        msg = message.message_str.replace("全国高校查询", "").strip()
-        
-        if not msg:
-            return CommandResult().error("示例：全国高校查询 医科")
-        
-        keyword = msg
-        api_url = "https://api.pearktrue.cn/api/college/"
-        params = f"keyword={urllib.parse.quote(keyword)}"
-        url = f"{api_url}?{params}"
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error("查询高校信息失败")
-                    
-                    data = await resp.json()
-                    
-                    if data.get("code") == 200 and "data" in data and len(data["data"]) > 0:
-                        # 构建输出结果
-                        output = f"状态信息：{data.get('msg', '')}\n"
-                        output += f"获取数量：{data.get('count', '')}\n"
-                        output += f"返回内容：\n\n"
-                        
-                        # 遍历所有结果
-                        for i, result in enumerate(data["data"], 1):
-                            output += f"=== 学校 {i} ===\n"
-                            output += f"名称：{result.get('name', '')}\n"
-                            output += f"部门：{result.get('department', '')}\n"
-                            output += f"城市：{result.get('city', '')}\n"
-                            output += f"教育等级：{result.get('level', '')}\n"
-                            output += f"办学性质：{result.get('remark', '')}\n\n"
-                        
-                        return CommandResult().message(output)
-                    else:
-                        return CommandResult().error(f"未找到高校信息：{data.get('msg', '未知错误')}")
-                        
-        except Exception as e:
-            logger.error(f"查询高校信息时发生错误：{e}")
-            return CommandResult().error(f"查询高校信息时发生错误：{str(e)}")
-
-    @filter.command("商标信息查询")
-    async def trademark_search(self, message: AstrMessageEvent):
-        """商标信息查询器"""
-        # 解析参数：商标信息查询 keyword
-        msg = message.message_str.replace("商标信息查询", "").strip()
-        
-        if not msg:
-            return CommandResult().error("示例：商标信息查询 光头强")
-        
-        keyword = msg
-        api_url = "https://api.pearktrue.cn/api/trademark/"
-        params = f"keyword={urllib.parse.quote(keyword)}"
-        url = f"{api_url}?{params}"
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error("查询商标信息失败")
-                    
-                    data = await resp.json()
-                    
-                    if data.get("code") == 200 and "data" in data and len(data["data"]) > 0:
-                        # 构建输出结果
-                        output = f"状态信息：{data.get('msg', '')}\n"
-                        output += f"搜索商标：{data.get('keyword', '')}\n"
-                        output += f"返回数量：{data.get('count', '')}\n\n"
-                        
-                        # 遍历所有结果
-                        for i, result in enumerate(data["data"], 1):
-                            output += f"=== 商标 {i} ===\n"
-                            output += f"注册号：{result.get('regNo', '')}\n"
-                            output += f"办理机构：{result.get('agent', '')}\n"
-                            output += f"注册公告日期：{result.get('regDate', '')}\n"
-                            output += f"申请日期：{result.get('appDate', '')}\n"
-                            output += f"商标状态：{result.get('statusStr', '')}\n"
-                            output += f"国际分类值：{result.get('intCls', '')}\n"
-                            output += f"国际分类名：{result.get('clsStr', '')}\n"
-                            output += f"申请人名称：{result.get('applicantCn', '')}\n"
-                            output += f"商标名称：{result.get('tmName', '')}\n"
-                            output += f"商标图片：{result.get('tmImgOssPath', '')}\n\n"
-                        
-                        return CommandResult().message(output)
-                    else:
-                        return CommandResult().error(f"未找到商标信息：{data.get('msg', '未知错误')}")
-                        
-        except Exception as e:
-            logger.error(f"查询商标信息时发生错误：{e}")
-            return CommandResult().error(f"查询商标信息时发生错误：{str(e)}")
-
-    @filter.command("王者战力查询")
-    async def king_glory_power_query(self, message: AstrMessageEvent):
-        """王者荣耀战力查询器"""
-        # 解析参数：王者战力查询 平台 英雄名称
-        msg = message.message_str.replace("王者战力查询", "").strip()
-        
-        if not msg:
-            return CommandResult().error("正确指令：王者战力查询 游戏平台（qq (安卓QQ，默认)、 wx (安卓微信)、 pqq (苹果QQ)、 pwx (苹果微信)）英雄名称\n\n示例：王者战力查询 qq 孙悟空")
-        
-        # 分割参数
-        parts = msg.split()
-        if len(parts) < 2:
-            return CommandResult().error("正确指令：王者战力查询 游戏平台（qq (安卓QQ，默认)、 wx (安卓微信)、 pqq (苹果QQ)、 pwx (苹果微信)）英雄名称\n\n示例：王者战力查询 qq 孙悟空")
-        
-        platform = parts[0].lower()
-        hero_name = " ".join(parts[1:])  # 支持英雄名称包含空格
-        
-        # 验证平台参数
-        valid_platforms = ['qq', 'wx', 'pqq', 'pwx']
-        if platform not in valid_platforms:
-            return CommandResult().error(f"无效的游戏平台：{platform}\n支持的平台：qq (安卓QQ，默认)、 wx (安卓微信)、 pqq (苹果QQ)、 pwx (苹果微信)")
-        
-        # 平台映射到新API的type参数
-        platform_mapping = {
-            'qq': 'aqq',  # 安卓QQ
-            'wx': 'awx',  # 安卓微信
-            'pqq': 'iqq', # 苹果QQ
-            'pwx': 'iwx'  # 苹果微信
-        }
-        
-        # 新API配置
-        api_url = 'https://api.wzryqz.cn/gethero'
-        
-        # 构建请求参数
-        params = {
-            'hero': hero_name,
-            'type': platform_mapping[platform]
-        }
-        
-        try:
-            # 设置超时和重试机制
-            timeout = aiohttp.ClientTimeout(total=10)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                try:
-                    async with session.get(api_url, params=params) as resp:
-                        if resp.status != 200:
-                            return CommandResult().error("查询王者战力失败，服务器返回错误状态码")
-                        
-                        data = await resp.json()
-                        
-                        if data.get("code") == 200 and "data" in data:
-                            hero_data = data["data"]
-                            
-                            # 构建输出结果
-                            output = f"英雄名称：{hero_data.get('name', '')}\n"
-                            output += f"英雄ID：{hero_data.get('heroId', '')}\n"
-                            output += f"英雄类型：{hero_data.get('hero_type', '')}\n"
-                            output += f"游戏平台：{platform}\n"
-                            output += f"前十最低战力：{hero_data.get('Top10', '')}\n"
-                            output += f"前100最低战力：{hero_data.get('Top100', '')}\n"
-                            
-                            # 显示省标信息（前3个）
-                            if 'province' in hero_data and hero_data['province']:
-                                output += "\n省标战力信息：\n"
-                                for i, province in enumerate(hero_data['province'][:3]):
-                                    output += f"  {i+1}. {province.get('loc', '')}: {province.get('val', '')}\n"
-                            
-                            # 显示市标信息（前3个）
-                            if 'city' in hero_data and hero_data['city']:
-                                output += "\n市标战力信息：\n"
-                                for i, city in enumerate(hero_data['city'][:3]):
-                                    output += f"  {i+1}. {city.get('loc', '')}: {city.get('val', '')}\n"
-                            
-                            # 显示区标信息（前3个）
-                            if 'county' in hero_data and hero_data['county']:
-                                output += "\n区标战力信息：\n"
-                                for i, county in enumerate(hero_data['county'][:3]):
-                                    output += f"  {i+1}. {county.get('loc', '')}: {county.get('val', '')}\n"
-                            
-                            output += f"\n更新时间：{hero_data.get('updatetime', '')}\n"
-                            
-                            return CommandResult().message(output)
-                        else:
-                            return CommandResult().error(f"未找到英雄战力信息：{data.get('msg', '未知错误')}")
-                except aiohttp.ClientError as e:
-                    logger.error(f"网络连接错误：{e}")
-                    return CommandResult().error("无法连接到王者战力查询服务器，请稍后重试或检查网络连接")
-                except asyncio.TimeoutError:
-                    logger.error("请求超时")
-                    return CommandResult().error("查询超时，请稍后重试")
-                        
-        except Exception as e:
-            logger.error(f"查询王者战力时发生错误：{e}")
-            return CommandResult().error(f"查询王者战力时发生错误：{str(e)}")
-
-    @filter.command("脑筋急转弯")
-    async def brain_teaser(self, message: AstrMessageEvent):
-        """脑筋急转弯生成器"""
-        api_url = "https://api.pearktrue.cn/api/brainteasers/"
-        
-        try:
-            # 设置超时
-            timeout = aiohttp.ClientTimeout(total=30, connect=10)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(api_url) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error("获取脑筋急转弯失败")
-                    
-                    data = await resp.json()
-                    
-                    if data.get("code") == 200 and "data" in data:
-                        question = data["data"].get("question", "")
-                        answer = data["data"].get("answer", "")
-                        
-                        if question and answer:
-                            result = f"脑筋急转弯来啦！！\n\n题目是：{question}\n\n答案：{answer}"
-                            return CommandResult().message(result)
-                        else:
-                            return CommandResult().error("获取到的脑筋急转弯数据不完整")
-                    else:
-                        return CommandResult().error(f"API返回错误：{data.get('msg', '未知错误')}")
-                        
-        except Exception as e:
-            logger.error(f"获取脑筋急转弯时发生错误：{e}")
-            return CommandResult().error(f"获取脑筋急转弯时发生错误：{str(e)}")
-
-    @filter.regex(r"^(早安|晚安)")
-    async def good_morning(self, message: AstrMessageEvent):
-        """和Bot说早晚安，记录睡眠时间，培养良好作息"""
-        # CREDIT: 灵感部分借鉴自：https://github.com/MinatoAquaCrews/nonebot_plugin_morning
-        umo_id = message.unified_msg_origin
-        user_id = message.message_obj.sender.user_id
-        user_name = message.message_obj.sender.nickname
-        curr_utc8 = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
-        curr_human = curr_utc8.strftime("%Y-%m-%d %H:%M:%S")
-
-        # 检查CD
-        if self.check_good_morning_cd(user_id, curr_utc8):
-            return CommandResult().message("你刚刚已经说过早安/晚安了，请30分钟后再试喵~").use_t2i(False)
-
-        is_night = "晚安" in message.message_str
-
-        if umo_id in self.good_morning_data:
-            umo = self.good_morning_data[umo_id]
-        else:
-            umo = {}
-        if user_id in umo:
-            user = umo[user_id]
-        else:
-            user = {
-                "daily": {
-                    "morning_time": "",
-                    "night_time": "",
+            # 如果提供了宠物类型，尝试添加宠物图片
+            # 首先检查pet_type是否直接在TYPE_IMAGES中
+            pet_image_name = None
+            if pet_type and pet_type in Pet.TYPE_IMAGES:
+                pet_image_name = Pet.TYPE_IMAGES[pet_type]
+            # 如果没有找到，尝试通过属性克制关系映射
+            elif pet_type and pet_type in Pet.TYPE_ADVANTAGES:
+                # 根据属性类型映射到具体的宠物名称
+                type_to_name = {
+                    "火": "烈焰",
+                    "水": "碧波兽",
+                    "草": "藤甲虫",
+                    "土": "碎裂岩",
+                    "金": "金刚"
                 }
-            }
-
-        if is_night:
-            user["daily"]["night_time"] = curr_human
-            user["daily"]["morning_time"] = ""  # 晚安后清空早安时间
-        else:
-            user["daily"]["morning_time"] = curr_human
-
-        umo[user_id] = user
-        self.good_morning_data[umo_id] = umo
-
-        with open(f"data/{self.PLUGIN_NAME}_data.json", "w", encoding="utf-8") as f:
-            f.write(json.dumps(self.good_morning_data, ensure_ascii=False, indent=2))
+                pet_name = type_to_name.get(pet_type)
+                if pet_name and pet_name in Pet.TYPE_IMAGES:
+                    pet_image_name = Pet.TYPE_IMAGES[pet_name]
             
-        # 更新CD
-        self.update_good_morning_cd(user_id, curr_utc8)
+            if pet_image_name:
+                pet_image_path = os.path.join(os.path.dirname(self.bg_image), f"{pet_image_name}.png")
+                if os.path.exists(pet_image_path):
+                    try:
+                        pet_img = Image.open(pet_image_path).convert("RGBA")
+                        # 调整宠物图片大小
+                        pet_img = pet_img.resize((300, 300))
+                        # 将宠物图片粘贴到背景图片上(左侧)
+                        bg.paste(pet_img, (50, 150), pet_img)
+                    except Exception as e:
+                        print(f"加载宠物图片失败: {e}")
+                        import traceback
+                        traceback.print_exc()
 
-        # 根据 day 判断今天是本群第几个睡觉的
-        curr_day: int = curr_utc8.day
-        curr_date_str = curr_utc8.strftime("%Y-%m-%d")
+            # 绘制标题(居中)
+            title = "宠物信息卡"
+            draw.text((W / 2, 50), title, font=font_title, fill=(0, 0, 0), anchor="mt")
 
-        self.invalidate_sleep_cache(umo_id, curr_date_str)
-        curr_day_sleeping = 0
-        for v in umo.values():
-            if v["daily"]["night_time"] and not v["daily"]["morning_time"]:
-                # he/she is sleeping
-                user_day = datetime.datetime.strptime(
-                    v["daily"]["night_time"], "%Y-%m-%d %H:%M:%S"
-                ).day
-                if user_day == curr_day:
-                    curr_day_sleeping += 1
+            # 解析文本信息
+            lines = text.split('\n')
+            pet_info = {}
+            for line in lines:
+                if '：' in line:
+                    key, value = line.split('：', 1)
+                    pet_info[key] = value
+
+            # 绘制信息卡排版
+            # 主人信息
+            if '主人' in pet_info:
+                draw.text((400, 150), f"主人：{pet_info['主人']}", font=font_text, fill=(0, 0, 0))
+            
+            # 宠物名称
+            if '名称' in pet_info:
+                draw.text((400, 200), f"名称：{pet_info['名称']}", font=font_text, fill=(0, 0, 0))
+            
+            # 宠物属性
+            if '属性' in pet_info:
+                draw.text((400, 250), f"属性：{pet_info['属性']}", font=font_text, fill=(0, 0, 0))
+            
+            # 战力值
+            if '战力值' in pet_info:
+                draw.text((400, 300), f"战力值：{pet_info['战力值']}", font=font_text, fill=(0, 0, 0))
+            
+            # 等级
+            if '等级' in pet_info:
+                draw.text((400, 350), f"等级：{pet_info['等级']}", font=font_text, fill=(0, 0, 0))
+
+            output_path = os.path.join(self.output_dir, f"pet_{int(datetime.now().timestamp())}.png")
+            bg.save(output_path)
+            print(f"图片已保存到: {output_path}")
+            return output_path
+        except Exception as e:
+            print(f"生成图片失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+logger = logging.getLogger(__name__)
+
+
+@register("宠物", "Tinyxi", "一个QQ宠物插件，包含创建宠物、喂养、对战等功能", "1.0.0", "https://github.com/520TinyXI/chongwu.git")
+class QQPetPlugin(Star):
+    def __init__(self, context: Context):
+        super().__init__(context)
+        plugin_dir = os.path.dirname(__file__)
         
-        # 更新缓存为最新计算结果
-        self.update_sleep_cache(umo_id, curr_date_str, curr_day_sleeping)
+        # 确保资源目录存在
+        assets_dir = os.path.join(plugin_dir, "assets")
+        if not os.path.exists(assets_dir):
+            os.makedirs(assets_dir)
+            logger.warning(f"创建资源目录: {assets_dir}")
+        
+        self.db = PetDatabase(plugin_dir)
+        self.img_gen = PetImageGenerator(plugin_dir)
+        self.pets: Dict[str, Pet] = {}
+        
+        # 初始化已有的宠物
+        self._load_existing_pets()
+    
+    async def terminate(self):
+        '''插件终止时调用'''
+        pass
+    
+    def _load_existing_pets(self):
+        """加载已有的宠物数据"""
+        # 获取所有用户ID
+        user_ids = self.db.get_all_user_ids()
+        for user_id in user_ids:
+            pet_data = self.db.get_pet_data(user_id)
+            if pet_data:
+                self.pets[user_id] = Pet.from_dict(pet_data)
+    
+    @filter.command("领取宠物")
+    async def adopt_pet(self, event: AstrMessageEvent, pet_type: str = None, pet_name: str = None):
+        """领取宠物"""
+        try:
+            # 处理可能缺失的参数
+            if event is None:
+                # 创建模拟事件对象
+                class MockEvent:
+                    def __init__(self):
+                        self.user_id = "test_user"
+                        self.args = []
+                    def get_sender_id(self):
+                        return self.user_id
+                    def get_args(self):
+                        return self.args
+                    def plain_result(self, text):
+                        return text
+                    def image_result(self, image_path):
+                        return f"[图片] {image_path}"
+                event = MockEvent()
+            
+            user_id = event.get_sender_id()
+            logger.info(f"用户 {user_id} 请求领取宠物")
+            
+            # 双重检查是否已领养宠物
+            if user_id in self.pets or self.db.get_pet_data(user_id):
+                yield event.plain_result("您已经领取了宠物！")
+                return
+            
+            # 预设宠物名称和类型
+            pet_options = [
+                {"name": "烈焰", "type": "火"},
+                {"name": "碧波兽", "type": "水"},
+                {"name": "藤甲虫", "type": "草"},
+                {"name": "碎裂岩", "type": "土"},
+                {"name": "金刚", "type": "金"}
+            ]
+            
+            # 获取发送者名称
+            sender_name = event.get_sender_name() or "未知"
+            
+            if pet_type and pet_name:
+                # 检查属性是否有效
+                valid_types = ["火", "水", "草", "土", "金"]
+                if pet_type not in valid_types:
+                    yield event.plain_result(f"无效的属性！请选择：{', '.join(valid_types)}")
+                    return
+                
+                # 检查是否是预设名称
+                matched_pet = next((p for p in pet_options if p["name"] == pet_name and p["type"] == pet_type), None)
+                if matched_pet:
+                    pet = Pet(matched_pet["name"], matched_pet["type"], sender_name)
+                else:
+                    # 自定义名称
+                    pet = Pet(pet_name, pet_type, sender_name)
+            else:
+                # 如果没有提供属性和名称，提示正确的指令格式
+                yield event.plain_result("正确的领取指令：/领取宠物 属性 名字\n属性可选：火、水、草、土、金")
+                return
+            
+            self.pets[user_id] = pet
+            
+            # 保存到数据库
+            self.db.create_pet(user_id, pet.name, pet.type, pet.owner)
+            self.db.update_pet_data(user_id, **pet.to_dict())
+            
+            # 生成结果信息
+            result = f"成功领取宠物！！！\n名称：{pet.name}\n属性：{pet.type}\n等级：{pet.level}\n经验值：{pet.exp}/{pet.level * 100}\n数值：\nHP={pet.hp},攻击={pet.attack}\n防御={pet.defense},速度={pet.speed}\n技能：无"
+            
+            # 尝试生成图片
+            try:
+                image_path = await self.img_gen.create_pet_image(result, pet.type)
+                if image_path:
+                    yield event.image_result(image_path)
+                    # 延迟删除临时文件，避免文件被占用
+                    import asyncio
+                    await asyncio.sleep(1)
+                    if os.path.exists(image_path):
+                        os.remove(image_path)
+                else:
+                    yield event.plain_result(result)
+            except Exception as e:
+                logger.error(f"生成图片失败: {str(e)}")
+                yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"领取宠物失败: {str(e)}")
+            yield event.plain_result(f"领取宠物失败了~错误原因: {str(e)}")
 
-        if not is_night:
-            # 计算睡眠时间: xx小时xx分
-            sleep_duration_human = ""
-            if user["daily"]["night_time"]:
-                night_time = datetime.datetime.strptime(
-                    user["daily"]["night_time"], "%Y-%m-%d %H:%M:%S"
-                )
-                morning_time = datetime.datetime.strptime(
-                    user["daily"]["morning_time"], "%Y-%m-%d %H:%M:%S"
-                )
-                sleep_duration = (morning_time - night_time).total_seconds()
-                hrs = int(sleep_duration / 3600)
-                mins = int((sleep_duration % 3600) / 60)
-                sleep_duration_human = f"{hrs}小时{mins}分"
-
-            return (
-                CommandResult()
-                .message(
-                    f"早上好喵，{user_name}！\n现在是 {curr_human}，昨晚你睡了 {sleep_duration_human}。"
-                )
-                .use_t2i(False)
+    @filter.command("宠物进化")
+    async def evolve_pet(self, event: AstrMessageEvent):
+        """宠物进化"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有领取宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 检查是否可以进化
+            if not pet.can_evolve():
+                yield event.plain_result(f"{pet.name}还不能进化！需要达到{Pet.EVOLUTION_DATA.get(pet.name, {}).get('required_level', 10)}级")
+                return
+            
+            # 执行进化
+            result = pet.evolve()
+            
+            # 更新数据库
+            self.db.update_pet_data(
+                user_id,
+                pet_name=pet.name,
+                pet_type=pet.type,
+                level=pet.level,
+                exp=pet.exp,
+                hp=pet.hp,
+                attack=pet.attack,
+                defense=pet.defense,
+                speed=pet.speed,
+                skills=pet.skills
             )
-        else:
-            return (
-                CommandResult()
-                .message(
-                    f"快睡觉喵，{user_name}！\n现在是 {curr_human}，你是本群今天第 {curr_day_sleeping} 个睡觉的。"
-                )
-                .use_t2i(False)
+            
+            # 生成进化结果图片
+            image_path = await self.img_gen.create_pet_image(result, pet.type)
+            if image_path:
+                yield event.image_result(image_path)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+            else:
+                yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"宠物进化失败: {str(e)}")
+            yield event.plain_result("宠物进化失败了~请联系管理员检查日志")
+
+    @filter.command("我的宠物")
+    async def my_pet(self, event: AstrMessageEvent):
+        """生成宠物状态卡"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有领养宠物！请先使用'领养宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 更新宠物状态
+            pet.update_status()
+            
+            # 保存到数据库
+            self.db.update_pet_data(user_id, **pet.to_dict())
+            
+            # 生成状态卡图片
+            result = str(pet)
+            image_path = await self.img_gen.create_pet_image(result, pet.type)
+            if image_path:
+                yield event.image_result(image_path)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+            else:
+                yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"生成状态卡失败: {str(e)}")
+            yield event.plain_result("生成状态卡失败了~请联系管理员检查日志")
+
+    @filter.command("对决")
+    async def duel_pet(self, event: AstrMessageEvent, opponent_id: str):
+        """与其他玩家进行PVP对战"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查参数
+            if not opponent_id:
+                yield event.plain_result("请使用格式: /对决 @某人")
+                return
+            
+            # 解析对手ID（这里简化处理，实际可能需要从@提及中提取）
+            opponent_id = opponent_id.replace("@", "")
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有领取宠物！请先使用'领取宠物'命令")
+                return
+            
+            # 检查对手是否存在宠物
+            if opponent_id not in self.pets and not self.db.get_pet_data(opponent_id):
+                yield event.plain_result(f"对手{opponent_id}还没有领取宠物！")
+                return
+            
+            # 加载对手宠物
+            if opponent_id not in self.pets:
+                pet_data = self.db.get_pet_data(opponent_id)
+                if pet_data:
+                    self.pets[opponent_id] = Pet.from_dict(pet_data)
+                else:
+                    yield event.plain_result(f"无法加载对手{opponent_id}的宠物数据！")
+                    return
+            
+            pet = self.pets[user_id]
+            opponent_pet = self.pets[opponent_id]
+            
+            # 检查宠物是否存活
+            if not pet.is_alive():
+                yield event.plain_result(f"{pet.name}已经失去战斗能力，请先治疗！")
+                return
+            
+            if not opponent_pet.is_alive():
+                yield event.plain_result(f"对手的{opponent_pet.name}已经失去战斗能力，请等待对手治疗后再挑战！")
+                return
+            
+            # 检查冷却时间
+            if not pet.is_battle_available():
+                yield event.plain_result(f"{pet.name}还在冷却中，请30分钟后再进行对决！")
+                return
+            
+            # 对战过程
+            battle_log = f"{pet.name} vs {opponent_pet.name}\n" + "="*30 + "\n"
+            
+            # 决定先手（速度高者先攻，速度相同则随机）
+            speed_diff = abs(pet.speed - opponent_pet.speed)
+            speed_advantage = speed_diff * 0.004  # 每点速度差增加0.4%先手概率
+            
+            if pet.speed > opponent_pet.speed:
+                player_first = random.random() < (0.5 + speed_advantage)
+            elif pet.speed < opponent_pet.speed:
+                player_first = random.random() >= (0.5 + speed_advantage)
+            else:
+                # 速度相同则随机决定先手
+                player_first = random.choice([True, False])
+            
+            while pet.is_alive() and opponent_pet.is_alive():
+                if player_first:
+                    # 玩家攻击
+                    # 35%概率使用技能
+                    if random.random() < 0.35 and pet.skills and pet.skill_unlocked:
+                        skill = random.choice(pet.skills)
+                        # 玩家使用新技能系统
+                        if skill == "火焰焚烧":
+                            skill_multiplier = 1.8
+                            battle_log += f"{pet.name}使用了火焰焚烧！\n"
+                            opponent_pet.burn_turns = 2
+                            battle_log += f"{opponent_pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                        elif skill == "巨浪淹没":
+                            skill_multiplier = 1.1
+                            battle_log += f"{pet.name}使用了巨浪淹没！\n"
+                            opponent_pet.heal_blocked_turns = 2
+                            battle_log += f"{opponent_pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                            if pet.defense_boost == 0:
+                                pet.defense_boost = 0.3
+                                battle_log += f"{pet.name}防御提升30%！\n"
+                        elif skill == "根须缠绕":
+                            skill_multiplier = 1.0
+                            battle_log += f"{pet.name}使用了根须缠绕！\n"
+                            battle_log += f"{opponent_pet.name}被根须缠绕，下回合无法行动！\n"
+                            opponent_pet.defense_boost = -0.2
+                            battle_log += f"{opponent_pet.name}防御降低20%！\n"
+                        elif skill == "大地堡垒":
+                            skill_multiplier = 1.0
+                            battle_log += f"{pet.name}使用了大地堡垒！\n"
+                            shield_amount = int(pet.defense * 2.0)
+                            battle_log += f"{pet.name}获得了{shield_amount}点护盾！\n"
+                        elif skill == "金属风暴":
+                            skill_multiplier = 1.6
+                            battle_log += f"{pet.name}使用了金属风暴！\n"
+                            pet.crit_rate_boost = 0.3
+                            battle_log += f"{pet.name}暴击率提升30%！\n"
+                        else:
+                            skill_multiplier = 1.0
+                    else:
+                        skill_multiplier = 1.0
+                    
+                    damage = pet.calculate_damage(opponent_pet, skill_multiplier)
+                    opponent_pet.hp = max(0, opponent_pet.hp - damage)
+                    battle_log += f"{pet.name}攻击{opponent_pet.name}，造成{damage}点伤害！\n"
+                    
+                    # 检查对手是否被击败
+                    if not opponent_pet.is_alive():
+                        battle_log += f"{opponent_pet.name}被击败了！\n"
+                        break
+                    
+                    # 对手攻击
+                    # 35%概率使用技能
+                    if random.random() < 0.35 and opponent_pet.skills and opponent_pet.skill_unlocked:
+                        skill = random.choice(opponent_pet.skills)
+                        # 对手使用新技能系统
+                        if skill == "火焰焚烧":
+                            skill_multiplier = 1.8
+                            battle_log += f"{opponent_pet.name}使用了火焰焚烧！\n"
+                            pet.burn_turns = 2
+                            battle_log += f"{pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                        elif skill == "巨浪淹没":
+                            skill_multiplier = 1.1
+                            battle_log += f"{opponent_pet.name}使用了巨浪淹没！\n"
+                            pet.heal_blocked_turns = 2
+                            battle_log += f"{pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                            if opponent_pet.defense_boost == 0:
+                                opponent_pet.defense_boost = 0.3
+                                battle_log += f"{opponent_pet.name}防御提升30%！\n"
+                        elif skill == "根须缠绕":
+                            skill_multiplier = 1.0
+                            battle_log += f"{opponent_pet.name}使用了根须缠绕！\n"
+                            battle_log += f"{pet.name}被根须缠绕，下回合无法行动！\n"
+                            pet.defense_boost = -0.2
+                            battle_log += f"{pet.name}防御降低20%！\n"
+                        elif skill == "大地堡垒":
+                            skill_multiplier = 1.0
+                            battle_log += f"{opponent_pet.name}使用了大地堡垒！\n"
+                            shield_amount = int(opponent_pet.defense * 2.0)
+                            battle_log += f"{opponent_pet.name}获得了{shield_amount}点护盾！\n"
+                        elif skill == "金属风暴":
+                            skill_multiplier = 1.6
+                            battle_log += f"{opponent_pet.name}使用了金属风暴！\n"
+                            opponent_pet.crit_rate_boost = 0.3
+                            battle_log += f"{opponent_pet.name}暴击率提升30%！\n"
+                        else:
+                            skill_multiplier = 1.0
+                    else:
+                        skill_multiplier = 1.0
+                    
+                    damage = opponent_pet.calculate_damage(pet, skill_multiplier)
+                    pet.hp = max(0, pet.hp - damage)
+                    battle_log += f"{opponent_pet.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                else:
+                    # 对手攻击
+                    # 35%概率使用技能
+                    if random.random() < 0.35 and opponent_pet.skills and opponent_pet.skill_unlocked:
+                        skill = random.choice(opponent_pet.skills)
+                        # 对手使用新技能系统
+                        if skill == "火焰焚烧":
+                            skill_multiplier = 1.8
+                            battle_log += f"{opponent_pet.name}使用了火焰焚烧！\n"
+                            pet.burn_turns = 2
+                            battle_log += f"{pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                        elif skill == "巨浪淹没":
+                            skill_multiplier = 1.1
+                            battle_log += f"{opponent_pet.name}使用了巨浪淹没！\n"
+                            pet.heal_blocked_turns = 2
+                            battle_log += f"{pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                            if opponent_pet.defense_boost == 0:
+                                opponent_pet.defense_boost = 0.3
+                                battle_log += f"{opponent_pet.name}防御提升30%！\n"
+                        elif skill == "根须缠绕":
+                            skill_multiplier = 1.0
+                            battle_log += f"{opponent_pet.name}使用了根须缠绕！\n"
+                            battle_log += f"{pet.name}被根须缠绕，下回合无法行动！\n"
+                            pet.defense_boost = -0.2
+                            battle_log += f"{pet.name}防御降低20%！\n"
+                        elif skill == "大地堡垒":
+                            skill_multiplier = 1.0
+                            battle_log += f"{opponent_pet.name}使用了大地堡垒！\n"
+                            shield_amount = int(opponent_pet.defense * 2.0)
+                            battle_log += f"{opponent_pet.name}获得了{shield_amount}点护盾！\n"
+                        elif skill == "金属风暴":
+                            skill_multiplier = 1.6
+                            battle_log += f"{opponent_pet.name}使用了金属风暴！\n"
+                            opponent_pet.crit_rate_boost = 0.3
+                            battle_log += f"{opponent_pet.name}暴击率提升30%！\n"
+                        else:
+                            skill_multiplier = 1.0
+                    else:
+                        skill_multiplier = 1.0
+                    
+                    damage = opponent_pet.calculate_damage(pet, skill_multiplier)
+                    pet.hp = max(0, pet.hp - damage)
+                    battle_log += f"{opponent_pet.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                    
+                    # 检查玩家是否被击败
+                    if not pet.is_alive():
+                        battle_log += f"{pet.name}被击败了！\n"
+                        break
+                    
+                    # 玩家攻击
+                    # 35%概率使用技能
+                    if random.random() < 0.35 and pet.skills and pet.skill_unlocked:
+                        skill = random.choice(pet.skills)
+                        # 玩家使用新技能系统
+                        if skill == "火焰焚烧":
+                            skill_multiplier = 1.8
+                            battle_log += f"{pet.name}使用了火焰焚烧！\n"
+                            opponent_pet.burn_turns = 2
+                            battle_log += f"{opponent_pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                        elif skill == "巨浪淹没":
+                            skill_multiplier = 1.1
+                            battle_log += f"{pet.name}使用了巨浪淹没！\n"
+                            opponent_pet.heal_blocked_turns = 2
+                            battle_log += f"{opponent_pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                            if pet.defense_boost == 0:
+                                pet.defense_boost = 0.3
+                                battle_log += f"{pet.name}防御提升30%！\n"
+                        elif skill == "根须缠绕":
+                            skill_multiplier = 1.0
+                            battle_log += f"{pet.name}使用了根须缠绕！\n"
+                            battle_log += f"{opponent_pet.name}被根须缠绕，下回合无法行动！\n"
+                            opponent_pet.defense_boost = -0.2
+                            battle_log += f"{opponent_pet.name}防御降低20%！\n"
+                        elif skill == "大地堡垒":
+                            skill_multiplier = 1.0
+                            battle_log += f"{pet.name}使用了大地堡垒！\n"
+                            shield_amount = int(pet.defense * 2.0)
+                            battle_log += f"{pet.name}获得了{shield_amount}点护盾！\n"
+                        elif skill == "金属风暴":
+                            skill_multiplier = 1.6
+                            battle_log += f"{pet.name}使用了金属风暴！\n"
+                            pet.crit_rate_boost = 0.3
+                            battle_log += f"{pet.name}暴击率提升30%！\n"
+                        else:
+                            skill_multiplier = 1.0
+                    else:
+                        skill_multiplier = 1.0
+                    
+                    damage = pet.calculate_damage(opponent_pet, skill_multiplier)
+                    opponent_pet.hp = max(0, opponent_pet.hp - damage)
+                    battle_log += f"{pet.name}攻击{opponent_pet.name}，造成{damage}点伤害！\n"
+                
+                # 添加分隔线
+                battle_log += "-"*20 + "\n"
+            
+            # 更新对战时间
+            pet.update_battle_time()
+            
+            # 战斗结果
+            if pet.is_alive():
+                # 玩家获胜
+                exp_gain = opponent_pet.level * 15
+                pet.exp += exp_gain
+                
+                # 检查是否升级
+                level_up = False
+                if pet.exp >= pet.level * 100:
+                    pet.level_up()
+                    level_up = True
+                
+                battle_log += f"\n战斗胜利！{pet.name}获得了{exp_gain}点经验值！"
+                if level_up:
+                    battle_log += f"\n{pet.name}升级了！"
+            else:
+                # 玩家失败
+                battle_log += f"\n战斗失败！{pet.name}被击败了！"
+                
+            # 更新数据库
+            self.db.update_pet_data(
+                user_id,
+                level=pet.level,
+                exp=pet.exp,
+                hp=pet.hp,
+                attack=pet.attack,
+                defense=pet.defense,
+                speed=pet.speed,
+                skills=pet.skills,
+                last_battle_time=pet.last_battle_time.isoformat()
             )
+            
+            self.db.update_pet_data(
+                opponent_id,
+                hp=opponent_pet.hp
+            )
+            
+            # 直接返回纯文字结果，不生成图片
+            yield event.plain_result(battle_log)
+            
+        except Exception as e:
+            logger.error(f"宠物对决失败: {str(e)}")
+            yield event.plain_result("宠物对决失败了~请联系管理员检查日志")
 
-    @filter.command("台词搜电影")
-    async def search_movie_by_lines(self, message: AstrMessageEvent):
-        """通过台词搜寻存在的电影"""
-        # 解析参数：台词搜电影 台词 爬取页数
-        msg = message.message_str.replace("台词搜电影", "").strip()
-        
-        if not msg:
-            return CommandResult().error("正确指令：台词搜电影 【台词】 【爬取页数】\n\n示例：台词搜电影 你还爱我吗 1")
-        
-        # 分割参数
-        parts = msg.split()
-        if len(parts) < 2:
-            return CommandResult().error("正确指令：台词搜电影 【台词】 【爬取页数】\n\n示例：台词搜电影 你还爱我吗 1")
-        
-        # 提取台词和页数
-        # 台词可能包含空格，所以最后一个参数是页数，其余是台词
-        page = parts[-1]
-        word = " ".join(parts[:-1])
-        
-        # 验证页数是否为数字
+    @filter.command("宠物菜单")
+    async def pet_menu(self, event: AstrMessageEvent):
+        """显示宠物帮助菜单"""
         try:
-            page_int = int(page)
-            if page_int < 1:
-                return CommandResult().error("爬取页数必须大于0")
-        except ValueError:
-            return CommandResult().error("爬取页数必须是数字")
-        
-        # API配置
-        api_url = "https://api.pearktrue.cn/api/media/lines.php"
-        params = {
-            'word': word,
-            'page': page_int
-        }
-        
+            menu = """宠物系统帮助菜单
+
+/领养宠物 [名称] - 领养一只宠物，可指定名称
+/我的宠物 - 查看宠物状态卡
+/宠物进化 - 当宠物达到指定等级后进化
+/对决 @某人 - 与其他玩家进行PVP对战（每30分钟冷却）
+/治疗宠物 - 治疗受伤的宠物
+/宠物大全 - 显示游戏内所有宠物
+/宠物菜单 - 显示此帮助菜单
+/查看金币 - 查看当前拥有的金币数量
+/商店 - 查看商店可购买的物品
+/购买 [物品ID] - 购买商店中的物品
+/投喂 [物品名] - 给宠物使用背包中的物品
+/查看技能 - 查看宠物已学习的技能
+/使用技能 [技能名] - 在对战中使用宠物技能
+
+属性克制关系:
+金克木 | 木克土 | 土克水 | 水克火 | 火克金
+克制目标伤害增幅20%"""
+            
+            # 直接返回纯文字结果，不生成图片
+            yield event.plain_result(menu)
+            
+        except Exception as e:
+            logger.error(f"显示宠物菜单失败: {str(e)}")
+            yield event.plain_result("显示宠物菜单失败了~请联系管理员检查日志")
+    
+    @filter.command("查看宠物")
+    async def view_pet(self, event: AstrMessageEvent):
+        """查看宠物信息"""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, params=params) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error("查询电影信息失败")
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 更新宠物状态
+            pet.update_status()
+            
+            # 保存到数据库
+            self.db.update_pet_data(user_id, **pet.to_dict())
+            
+            # 直接返回纯文字结果，不生成图片
+            result = str(pet)
+            yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"查看宠物失败: {str(e)}")
+            yield event.plain_result("查看宠物失败了~请联系管理员检查日志")
+    
+    @filter.command("宠物大全")
+    async def pet_catalog(self, event: AstrMessageEvent):
+        """显示所有预设宠物"""
+        try:
+            # 预设宠物名称和类型
+            pet_options = [
+                {"name": "烈焰", "type": "火"},
+                {"name": "碧波兽", "type": "水"},
+                {"name": "藤甲虫", "type": "草"},
+                {"name": "碎裂岩", "type": "土"},
+                {"name": "金刚", "type": "金"}
+            ]
+            
+            # 生成宠物列表
+            pet_list = "\n".join([f"【{pet['name']}】 {pet['type']}" for pet in pet_options])
+            result = f"游戏内所有宠物:\n{pet_list}"
+            
+            # 直接返回纯文字结果，不生成图片
+            yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"显示宠物大全失败: {str(e)}")
+            yield event.plain_result("显示宠物大全失败了~请联系管理员检查日志")
+
+
+    @filter.command("购买")
+    async def buy_item(self, event: AstrMessageEvent, item_name: str = None, quantity: int = 1):
+        """购买物品"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查参数
+            if not item_name:
+                yield event.plain_result("请使用格式: /购买 [物品名] [数量]")
+                return
+            
+            # 获取商店物品
+            shop_items = self.db.get_shop_items()
+            item = next((i for i in shop_items if i["name"] == item_name), None)
+            
+            if not item:
+                yield event.plain_result(f"商店中没有{item_name}！")
+                return
+            
+            # 检查数量
+            if quantity <= 0:
+                yield event.plain_result("购买数量必须大于0！")
+                return
+            
+            # 计算总价
+            total_price = item["price"] * quantity
+            
+            # 检查是否有足够的金币
+            if user_id in self.pets:
+                pet = self.pets[user_id]
+                if pet.coins < total_price:
+                    yield event.plain_result(f"金币不足！您需要{total_price}金币，但只有{pet.coins}金币。")
+                    return
+                
+                # 扣除金币
+                pet.coins -= total_price
+                # 更新数据库
+                self.db.update_pet_data(user_id, coins=pet.coins)
+            
+            # 添加物品到背包
+            self.db.add_item_to_inventory(user_id, item_name, quantity)
+            
+            yield event.plain_result(f"成功购买{quantity}个{item_name}，花费{total_price}金币！您还剩余{pet.coins}金币。")
+            
+        except Exception as e:
+            logger.error(f"购买物品失败: {str(e)}")
+            yield event.plain_result("购买物品失败了~请联系管理员检查日志")
+    
+    @filter.command("探索")
+    async def explore(self, event: AstrMessageEvent):
+        """探索功能"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 生成随机事件
+            event_type = random.random()
+            
+            if event_type < 0.05:  # 5%机缘事件
+                event_result = "遇到了隐士高人，赠与金币100至1000随机并传授你的宠物1000经验值"
+                
+                # 随机金币和经验
+                gold = random.randint(100, 1000)
+                exp = 1000
+                
+                # 增加金币
+                pet.coins += gold
+                
+                # 增加宠物经验
+                pet.exp += exp
+                
+                # 检查是否升级
+                level_up = False
+                if pet.exp >= pet.level * 100:
+                    pet.level_up()
+                    level_up = True
+                
+                # 更新数据库
+                self.db.update_pet_data(
+                    user_id,
+                    coins=pet.coins,
+                    exp=pet.exp,
+                    level=pet.level,
+                    hp=pet.hp,
+                    attack=pet.attack,
+                    defense=pet.defense,
+                    speed=pet.speed,
+                    skills=pet.skills
+                )
+                
+                result = f"{event_result}\n获得{gold}金币和{exp}经验值！"
+                if level_up:
+                    result += f"\n{pet.name}升级了！"
+                
+            elif event_type < 0.20:  # 15%好事件
+                good_events = [
+                    "路上捡到了医疗箱，打开后发现【1-10瓶中治疗瓶随机】",
+                    "碰到了一个老太太，她见你骨骼精奇，给你宠物传授了500经验值",
+                    "一个小女孩撞到了你，她给你道歉后送你美味罐头10-15【随机】个",
+                    "遇到一个好心的商人，他免费送给你【3-8个小治疗瓶】",
+                    "在河边捡到了一些金币【100-500随机】！"
+                ]
+                event_result = random.choice(good_events)
+                
+                if "医疗箱" in event_result:
+                    # 随机中治疗瓶数量
+                    quantity = random.randint(1, 10)
+                    self.db.add_item_to_inventory(user_id, "中治疗瓶", quantity)
+                    result = f"{event_result}\n获得{quantity}瓶中治疗瓶！"
+                elif "老太太" in event_result:
+                    # 增加宠物经验
+                    exp = 500
+                    pet.exp += exp
                     
-                    data = await resp.json()
+                    # 检查是否升级
+                    level_up = False
+                    if pet.exp >= pet.level * 100:
+                        pet.level_up()
+                        level_up = True
                     
-                    if data.get("code") == 200 and "data" in data:
-                        # 构建基础信息输出
-                        output = f"状态信息：{data.get('msg', '')}\n"
-                        output += f"台词：{data.get('word', '')}\n"
-                        output += f"获取影视数量：{data.get('count', '')}\n"
-                        output += f"目前页数：{data.get('now_page', '')}\n"
-                        output += f"最终页数：{data.get('last_page', '')}\n"
-                        output += f"返回内容：\n\n"
+                    # 更新数据库
+                    self.db.update_pet_data(
+                        user_id,
+                        exp=pet.exp,
+                        level=pet.level,
+                        hp=pet.hp,
+                        attack=pet.attack,
+                        defense=pet.defense,
+                        speed=pet.speed,
+                        skills=pet.skills
+                    )
+                    
+                    result = f"{event_result}\n获得{exp}经验值！"
+                    if level_up:
+                        result += f"\n{pet.name}升级了！"
+                elif "好心的商人" in event_result:
+                    # 随机小治疗瓶数量
+                    quantity = random.randint(3, 8)
+                    self.db.add_item_to_inventory(user_id, "小治疗瓶", quantity)
+                    result = f"{event_result}\n获得{quantity}瓶小治疗瓶！"
+                elif "捡到了一些金币" in event_result:
+                    # 随机金币数量
+                    gold = random.randint(100, 500)
+                    pet.coins += gold
+                    
+                    # 更新数据库
+                    self.db.update_pet_data(
+                        user_id,
+                        coins=pet.coins
+                    )
+                    
+                    result = f"{event_result}\n获得{gold}金币！"
+                else:  # 小女孩事件
+                    # 随机美味罐头数量
+                    quantity = random.randint(10, 15)
+                    self.db.add_item_to_inventory(user_id, "美味罐头", quantity)
+                    result = f"{event_result}\n获得{quantity}个美味罐头！"
+            else:  # 80%坏事件
+                bad_events = [
+                    "碰到了邪恶训练师【等级】\n你不得不和他对战！！！",
+                    "你掉进了陷阱！！遇到了哥布林【等级】",
+                    "你看见了一只发疯的魔灵兔【等级】，你准备为民除害！！",
+                    "你迷路了，遇到了神秘的黑暗法师【等级】！",
+                    "好！你踩到了地刺陷阱，生命值减少，同时遭遇了地龙【等级】！"
+                ]
+                event_result = random.choice(bad_events)
+                
+                # 根据事件类型创建不同的对手
+                try:
+                    if "黑暗法师" in event_result:
+                        opponent = Pet("黑暗法师暗影", "暗")
+                        # 设置对手等级为当前宠物等级+2级
+                        opponent.level = pet.level + 2
+                        # 调整对手属性
+                        opponent.update_stats()
+                    elif "地刺陷阱" in event_result:
+                        # 先减少玩家生命值
+                        damage = random.randint(10, 30)
+                        pet.hp = max(1, pet.hp - damage)  # 至少保留1点生命值
                         
-                        # 遍历所有电影结果
-                        for i, movie in enumerate(data["data"], 1):
-                            output += f"=== 电影 {i} ===\n"
-                            output += f"图片：{movie.get('local_img', '')}\n"
-                            output += f"更新时间：{movie.get('update_time', '')}\n"
-                            output += f"标题：{movie.get('title', '')}\n"
-                            output += f"国家：{movie.get('area', '')}\n"
-                            output += f"标签：{movie.get('tags', '')}\n"
-                            output += f"导演：{movie.get('directors', '')}\n"
-                            output += f"演员：{movie.get('actors', '')}\n"
-                            output += f"zh_word：{movie.get('zh_word', '')}\n"
-                            output += f"all_zh_word：{', '.join(movie.get('all_zh_word', []))}\n\n"
+                        opponent = Pet("地龙岩石", "土")  # 修正：使用"土"而不是"地"
+                        # 设置对手等级为当前宠物等级
+                        opponent.level = pet.level
+                        # 调整对手属性
+                        opponent.update_stats()
+                    elif "魔灵兔" in event_result:
+                        # 生成魔灵兔对手
+                        opponent = Pet("魔灵兔普通", "普通")
+                        # 设置对手等级为当前宠物等级
+                        opponent.level = pet.level
+                        # 调整对手属性
+                        opponent.update_stats()
+                    elif "哥布林" in event_result:
+                        # 生成哥布林对手
+                        opponent_types = ["火", "水", "草", "电"]
+                        opponent_type = random.choice(opponent_types)
+                        # 确保"电"类型有对应的属性
+                        if opponent_type == "电":
+                            opponent_type = "金"  # 将"电"映射到"金"类型
+                        opponent = Pet(f"哥布林{opponent_type}", opponent_type)
                         
-                        return CommandResult().message(output)
+                        # 设置对手等级为当前宠物等级-1级
+                        opponent.level = max(1, pet.level - 1)
+                        
+                        # 调整对手属性
+                        opponent.update_stats()
                     else:
-                        return CommandResult().error(f"未找到相关电影：{data.get('msg', '未知错误')}")
+                        # 默认对手生成逻辑（邪恶训练师）
+                        opponent_types = ["火", "水", "草", "电"]
+                        opponent_type = random.choice(opponent_types)
+                        # 确保"电"类型有对应的属性
+                        if opponent_type == "电":
+                            opponent_type = "金"  # 将"电"映射到"金"类型
+                        opponent = Pet(f"邪恶训练师{opponent_type}", opponent_type)
                         
-        except Exception as e:
-            logger.error(f"查询电影信息时发生错误：{e}")
-            return CommandResult().error(f"查询电影信息时发生错误：{str(e)}")
-
-    @filter.command("今日运势")
-    async def today_horoscope(self, message: AstrMessageEvent):
-        """查询今日星座运势"""
-        # 解析参数：今日运势 星座名
-        msg = message.message_str.replace("今日运势", "").strip()
-        
-        if not msg:
-            return CommandResult().error("正确指令：今日运势 星座名\n\n示例：今日运势 白羊")
-        
-        # 提取星座名
-        constellation = msg
-        
-        # API配置
-        api_url = "https://api.pearktrue.cn/api/xzys/"
-        params = {
-            'xz': constellation
-        }
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, params=params) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error("查询星座运势失败")
-                    
-                    data = await resp.json()
-                    
-                    if data.get("code") == 200 and "data" in data:
-                        # 获取数据
-                        horoscope_data = data["data"]
+                        # 设置对手等级为当前宠物等级±1级
+                        level_diff = random.randint(-1, 1)
+                        opponent.level = max(1, pet.level + level_diff)
                         
-                        # 构建基础信息输出
-                        output = f"状态信息：{data.get('msg', '')}\n"
-                        output += f"星座：{data.get('xz', '')}\n"
-                        output += f"返回内容：\n\n"
-                        
-                        # 添加详细信息
-                        output += f"标题：{horoscope_data.get('title', '')}\n"
-                        output += f"时间：{horoscope_data.get('time', '')}\n"
-                        output += f"幸运色：{horoscope_data.get('luckycolor', '')}\n"
-                        output += f"幸运数字：{horoscope_data.get('luckynumber', '')}\n"
-                        output += f"幸运星座：{horoscope_data.get('luckyconstellation', '')}\n"
-                        output += f"简短的评论：{horoscope_data.get('shortcomment', '')}\n"
-                        output += f"全文：{horoscope_data.get('alltext', '')}\n\n"
-                        
-                        # 添加各方面运势
-                        output += f"爱情：\n{horoscope_data.get('lovetext', '')}\n\n"
-                        output += f"事业：\n{horoscope_data.get('worktext', '')}\n\n"
-                        output += f"金钱：\n{horoscope_data.get('moneytext', '')}\n\n"
-                        output += f"健康：\n{horoscope_data.get('healthtxt', '')}"
-                        
-                        return CommandResult().message(output)
+                        # 根据等级调整对手属性
+                        opponent.update_stats()
+                except Exception as e:
+                    logger.error(f"生成对手失败: {str(e)}")
+                    # 如果生成对手失败，使用默认对手
+                    opponent = Pet("普通野怪", "普通")
+                    opponent.level = pet.level
+                    opponent.update_stats()
+                
+                # 对战过程
+                battle_log = f"{event_result.replace('【等级】', f'【{opponent.level}级】')}\n"
+                battle_log += f"{pet.name} vs {opponent.name}\n"
+                battle_log += f"{pet.name}基础数值：\n"
+                battle_log += f"HP={pet.hp},攻击={pet.attack}\n"
+                battle_log += f"防御={pet.defense},速度={pet.speed}\n"
+                battle_log += "--------------------\n"
+                battle_log += f"{opponent.name}基础数值：\n"
+                battle_log += f"HP={opponent.hp},攻击={opponent.attack}\n"
+                battle_log += f"防御={opponent.defense},速度={opponent.speed}\n"
+                battle_log += "-------------------\n"
+                
+                # 决定先手（速度高者先攻，速度相同则随机）
+                speed_diff = abs(pet.speed - opponent.speed)
+                speed_advantage = speed_diff * 0.004  # 每点速度差增加0.4%先手概率
+                
+                if pet.speed > opponent.speed:
+                    player_first = random.random() < (0.5 + speed_advantage)
+                    if player_first:
+                        battle_log += f"{pet.name}速度占优！\n由{pet.name}率先攻击！\n"
                     else:
-                        return CommandResult().error(f"未找到星座运势：{data.get('msg', '未知错误')}")
+                        battle_log += f"{opponent.name}逆袭了！\n由{opponent.name}率先攻击！\n"
+                elif pet.speed < opponent.speed:
+                    player_first = random.random() >= (0.5 + speed_advantage)
+                    if not player_first:
+                        battle_log += f"{opponent.name}速度占优！\n由{opponent.name}率先攻击！\n"
+                    else:
+                        battle_log += f"{pet.name}逆袭了！\n由{pet.name}率先攻击！\n"
+                else:
+                    # 速度相同则随机决定先手
+                    player_first = random.choice([True, False])
+                    if player_first:
+                        battle_log += f"双方速度相同！\n由{pet.name}率先攻击！\n"
+                    else:
+                        battle_log += f"双方速度相同！\n由{opponent.name}率先攻击！\n"
+                
+                battle_log += "==============================\n"
+                
+                # 战斗循环
+                while pet.is_alive() and opponent.is_alive():
+                    # 检查是否需要自动使用治疗瓶
+                    used_heal_bottle = False
+                    if pet.hp <= pet.auto_heal_threshold and pet.auto_heal_threshold > 0:
+                        # 检查背包中是否有治疗瓶
+                        inventory = self.db.get_user_inventory(user_id)
+                        heal_bottle = None
+                        for item in inventory:
+                            if item['name'] in ['小治疗瓶', '中治疗瓶', '大治疗瓶'] and item['quantity'] > 0:
+                                heal_bottle = item['name']
+                                break
                         
-        except Exception as e:
-            logger.error(f"查询星座运势时发生错误：{e}")
-            return CommandResult().error(f"查询星座运势时发生错误：{str(e)}")
-
-    @filter.command("查询原神基本信息")
-    async def genshin_basic_info(self, message: AstrMessageEvent):
-        """查询原神基本信息"""
-        # 解析参数：查询原神基本信息 游戏uid 所在服务器
-        msg = message.message_str.replace("查询原神基本信息", "").strip()
-        
-        if not msg:
-            return CommandResult().error("正确指令为：查询原神基本信息 游戏uid 所在服务器\n服务器有：官服 渠道服 美洲服 欧洲服 亚洲服 繁体中文服\n\n示例：/查询原神基本信息 123456 官服")
-        
-        # 分割参数
-        parts = msg.split()
-        if len(parts) < 2:
-            return CommandResult().error("正确指令为：查询原神基本信息 游戏uid 所在服务器\n服务器有：官服 渠道服 美洲服 欧洲服 亚洲服 繁体中文服\n\n示例：/查询原神基本信息 123456 官服")
-        
-        # 提取UID和服务器
-        uid = parts[0]
-        server_name = parts[1]
-        
-        # 验证UID是否为数字
-        try:
-            uid_int = int(uid)
-            if uid_int < 100000000:
-                return CommandResult().error("游戏UID格式不正确")
-        except ValueError:
-            return CommandResult().error("游戏UID必须是数字")
-        
-        # 服务器名称映射
-        server_mapping = {
-            "官服": "cn_gf01",
-            "渠道服": "cn_qd01", 
-            "美洲服": "os_usa",
-            "欧洲服": "os_euro",
-            "亚洲服": "os_asia",
-            "繁体中文服": "os_cht"
-        }
-        
-        # 验证服务器名称
-        if server_name not in server_mapping:
-            return CommandResult().error("正确指令为：查询原神基本信息 游戏uid 所在服务器\n服务器有：官服 渠道服 美洲服 欧洲服 亚洲服 繁体中文服\n\n示例：/查询原神基本信息 123456 官服")
-        
-        server_code = server_mapping[server_name]
-        
-        # API配置
-        api_url = "https://api.nilou.moe/v1/bbs/genshin/BasicInfo"
-        params = {
-            'uid': uid_int,
-            'server': server_code
-        }
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, params=params) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error("查询失败！可能是服务器问题！\n提醒：用户必须注册米游社/HoYoLAB，且开启了\"在战绩页面是否展示角色详情\"否则也会查询失败！！！")
-                    
-                    data = await resp.json()
-                    
-                    # 检查API响应
-                    if "data" not in data:
-                        return CommandResult().error("查询失败！可能是服务器问题！\n提醒：用户必须注册米游社/HoYoLAB，且开启了\"在战绩页面是否展示角色详情\"否则也会查询失败！！！")
-                    
-                    game_data = data["data"]
-                    
-                    # 构建基本信息输出
-                    output = "原神基本信息整理（中文）\n"
-                    output += f"信息：{data.get('message', '成功')}\n"
-                    output += "数据详情：\n"
-                    
-                    # 角色信息
-                    characters = game_data.get('characters', [])
-                    if characters:
-                        output += "=== 角色信息 ===\n"
-                        for i, char in enumerate(characters[:5], 1):  # 只显示前5个角色
-                            output += f"角色{i}：{char.get('name', '')}（等级{char.get('level', '')}）\n"
-                        if len(characters) > 5:
-                            output += f"...还有{len(characters)-5}个角色\n"
-                    
-                    # 游戏统计数据
-                    stats = game_data.get('stats', {})
-                    if stats:
-                        output += "\n=== 游戏统计数据 ===\n"
-                        output += f"活跃天数：{stats.get('active_days', '')}\n"
-                        output += f"成就达成数：{stats.get('achievements', '')}\n"
-                        output += f"获得角色数：{stats.get('characters_number', '')}\n"
-                        output += f"深境螺旋：{stats.get('spiral_abyss', '')}\n"
-                    
-                    # 世界探索进度
-                    world_explorations = game_data.get('world_explorations', [])
-                    if world_explorations:
-                        output += "\n=== 世界探索进度 ===\n"
-                        for exploration in world_explorations:
-                            output += f"{exploration.get('name', '')}：{exploration.get('exploration_percentage', '')}%\n"
-                    
-                    # 尘歌壶信息
-                    homes = game_data.get('homes', [])
-                    if homes:
-                        output += "\n=== 尘歌壶信息 ===\n"
-                        for home in homes:
-                            output += f"{home.get('name', '')}：等级{home.get('level', '')}，访客数{home.get('visit_num', '')}\n"
-                    
-                    return CommandResult().message(output)
+                        if heal_bottle:
+                            # 使用治疗瓶
+                            heal_result = self.db.use_item_on_pet(user_id, heal_bottle, pet)
+                            battle_log += f"{heal_result}\n"
+                            used_heal_bottle = True
+                            
+                            # 更新数据库
+                            self.db.update_pet_data(
+                                user_id,
+                                hp=pet.hp,
+                                hunger=pet.hunger,
+                                mood=pet.mood
+                            )
                         
+                    if player_first:
+                        # 如果使用了治疗瓶，玩家本回合无法攻击
+                        if used_heal_bottle:
+                            battle_log += f"{pet.name}使用了治疗瓶，本回合无法攻击！\n"
+                            # 对手攻击
+                            # 35%概率使用技能
+                            if random.random() < 0.35 and opponent.skills and opponent.skill_unlocked:
+                                skill = random.choice(opponent.skills)
+                                # 对手使用新技能系统
+                                if skill == "火焰焚烧":
+                                    skill_multiplier = 1.8
+                                    battle_log += f"{opponent.name}使用了火焰焚烧！\n"
+                                    pet.burn_turns = 2
+                                    battle_log += f"{pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                                elif skill == "巨浪淹没":
+                                    skill_multiplier = 1.1
+                                    battle_log += f"{opponent.name}使用了巨浪淹没！\n"
+                                    pet.heal_blocked_turns = 2
+                                    battle_log += f"{pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                                    if opponent.defense_boost == 0:
+                                        opponent.defense_boost = 0.3
+                                        battle_log += f"{opponent.name}防御提升30%！\n"
+                                elif skill == "根须缠绕":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{opponent.name}使用了根须缠绕！\n"
+                                    battle_log += f"{pet.name}被根须缠绕，下回合无法行动！\n"
+                                    pet.defense_boost = -0.2
+                                    battle_log += f"{pet.name}防御降低20%！\n"
+                                elif skill == "大地堡垒":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{opponent.name}使用了大地堡垒！\n"
+                                    shield_amount = int(opponent.defense * 2.0)
+                                    battle_log += f"{opponent.name}获得了{shield_amount}点护盾！\n"
+                                elif skill == "金属风暴":
+                                    skill_multiplier = 1.6
+                                    battle_log += f"{opponent.name}使用了金属风暴！\n"
+                                    opponent.crit_rate_boost = 0.3
+                                    battle_log += f"{opponent.name}暴击率提升30%！\n"
+                                else:
+                                    skill_multiplier = 1.0
+                            else:
+                                skill_multiplier = 1.0
+                            
+                            damage_info = opponent.calculate_damage(pet, skill_multiplier)
+                            damage = damage_info["damage"]
+                            pet.hp = max(0, pet.hp - damage)
+                            if damage_info["is_critical"]:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                        else:
+                            # 玩家攻击
+                            # 35%概率使用技能
+                            if random.random() < 0.35 and pet.skills and pet.skill_unlocked:
+                                skill = random.choice(pet.skills)
+                                # 新技能系统
+                                if skill == "火焰焚烧":
+                                    skill_multiplier = 1.8
+                                    battle_log += f"{pet.name}使用了火焰焚烧！\n"
+                                    # 灼烧效果：2回合内对手每回合额外受到20%攻击伤害
+                                    opponent.burn_turns = 2
+                                    battle_log += f"{opponent.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                                elif skill == "巨浪淹没":
+                                    skill_multiplier = 1.1
+                                    battle_log += f"{pet.name}使用了巨浪淹没！\n"
+                                    # 禁疗效果：2回合内无法治疗
+                                    opponent.heal_blocked_turns = 2
+                                    battle_log += f"{opponent.name}被禁疗了，2回合内无法使用治疗！\n"
+                                    # 自身防御加30%
+                                    if pet.defense_boost == 0:
+                                        pet.defense_boost = 0.3
+                                        battle_log += f"{pet.name}防御提升30%！\n"
+                                elif skill == "根须缠绕":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{pet.name}使用了根须缠绕！\n"
+                                    # 使目标无法行动2回合
+                                    # 这里简化处理，实际应该在战斗循环中实现
+                                    battle_log += f"{opponent.name}被根须缠绕，下回合无法行动！\n"
+                                    # 降低目标防御20%两回合
+                                    opponent.defense_boost = -0.2
+                                    battle_log += f"{opponent.name}防御降低20%！\n"
+                                elif skill == "大地堡垒":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{pet.name}使用了大地堡垒！\n"
+                                    # 为自身添加相当于自身防御200%的护盾
+                                    shield_amount = int(pet.defense * 2.0)
+                                    battle_log += f"{pet.name}获得了{shield_amount}点护盾！\n"
+                                elif skill == "金属风暴":
+                                    skill_multiplier = 1.6
+                                    battle_log += f"{pet.name}使用了金属风暴！\n"
+                                    # 暴击率添加30%直至触发暴击伤害
+                                    pet.crit_rate_boost = 0.3
+                                    battle_log += f"{pet.name}暴击率提升30%！\n"
+                                else:
+                                    skill_multiplier = 1.0
+                            else:
+                                skill_multiplier = 1.0
+                            
+                            damage_info = pet.calculate_damage(opponent, skill_multiplier)
+                            damage = damage_info["damage"]
+                            opponent.hp = max(0, opponent.hp - damage)
+                            if damage_info["is_critical"]:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                            
+                            # 检查对手是否被击败
+                            if not opponent.is_alive():
+                                battle_log += f"{opponent.name}被击败了！\n"
+                                break
+                            
+                            # 对手攻击
+                            # 35%概率使用技能
+                            if random.random() < 0.35 and opponent.skills and opponent.skill_unlocked:
+                                skill = random.choice(opponent.skills)
+                                # 对手使用新技能系统
+                                if skill == "火焰焚烧":
+                                    skill_multiplier = 1.8
+                                    battle_log += f"{opponent.name}使用了火焰焚烧！\n"
+                                    pet.burn_turns = 2
+                                    battle_log += f"{pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                                elif skill == "巨浪淹没":
+                                    skill_multiplier = 1.1
+                                    battle_log += f"{opponent.name}使用了巨浪淹没！\n"
+                                    pet.heal_blocked_turns = 2
+                                    battle_log += f"{pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                                    if opponent.defense_boost == 0:
+                                        opponent.defense_boost = 0.3
+                                        battle_log += f"{opponent.name}防御提升30%！\n"
+                                elif skill == "根须缠绕":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{opponent.name}使用了根须缠绕！\n"
+                                    battle_log += f"{pet.name}被根须缠绕，下回合无法行动！\n"
+                                    pet.defense_boost = -0.2
+                                    battle_log += f"{pet.name}防御降低20%！\n"
+                                elif skill == "大地堡垒":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{opponent.name}使用了大地堡垒！\n"
+                                    shield_amount = int(opponent.defense * 2.0)
+                                    battle_log += f"{opponent.name}获得了{shield_amount}点护盾！\n"
+                                elif skill == "金属风暴":
+                                    skill_multiplier = 1.6
+                                    battle_log += f"{opponent.name}使用了金属风暴！\n"
+                                    opponent.crit_rate_boost = 0.3
+                                    battle_log += f"{opponent.name}暴击率提升30%！\n"
+                                else:
+                                    skill_multiplier = 1.0
+                            else:
+                                skill_multiplier = 1.0
+                            
+                            damage_info = opponent.calculate_damage(pet, skill_multiplier)
+                            damage = damage_info["damage"]
+                            pet.hp = max(0, pet.hp - damage)
+                            if damage_info["is_critical"]:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                    else:
+                        # 如果使用了治疗瓶，玩家本回合无法攻击
+                        if used_heal_bottle:
+                            battle_log += f"{pet.name}使用了治疗瓶，本回合无法攻击！\n"
+                            # 对手攻击
+                            # 35%概率使用技能
+                            if random.random() < 0.35 and opponent.skills and opponent.skill_unlocked:
+                                skill = random.choice(opponent.skills)
+                                # 对手使用新技能系统
+                                if skill == "火焰焚烧":
+                                    skill_multiplier = 1.8
+                                    battle_log += f"{opponent.name}使用了火焰焚烧！\n"
+                                    pet.burn_turns = 2
+                                    battle_log += f"{pet.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                                elif skill == "巨浪淹没":
+                                    skill_multiplier = 1.1
+                                    battle_log += f"{opponent.name}使用了巨浪淹没！\n"
+                                    pet.heal_blocked_turns = 2
+                                    battle_log += f"{pet.name}被禁疗了，2回合内无法使用治疗！\n"
+                                    if opponent.defense_boost == 0:
+                                        opponent.defense_boost = 0.3
+                                        battle_log += f"{opponent.name}防御提升30%！\n"
+                                elif skill == "根须缠绕":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{opponent.name}使用了根须缠绕！\n"
+                                    battle_log += f"{pet.name}被根须缠绕，下回合无法行动！\n"
+                                    pet.defense_boost = -0.2
+                                    battle_log += f"{pet.name}防御降低20%！\n"
+                                elif skill == "大地堡垒":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{opponent.name}使用了大地堡垒！\n"
+                                    shield_amount = int(opponent.defense * 2.0)
+                                    battle_log += f"{opponent.name}获得了{shield_amount}点护盾！\n"
+                                elif skill == "金属风暴":
+                                    skill_multiplier = 1.6
+                                    battle_log += f"{opponent.name}使用了金属风暴！\n"
+                                    opponent.crit_rate_boost = 0.3
+                                    battle_log += f"{opponent.name}暴击率提升30%！\n"
+                                else:
+                                    skill_multiplier = 1.0
+                            else:
+                                skill_multiplier = 1.0
+                            
+                            damage_info = opponent.calculate_damage(pet, skill_multiplier)
+                            damage = damage_info["damage"]
+                            pet.hp = max(0, pet.hp - damage)
+                            if damage_info["is_critical"]:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                        else:
+                            # 对手攻击
+                            damage_info = opponent.calculate_damage(pet)
+                            damage = damage_info["damage"]
+                            pet.hp = max(0, pet.hp - damage)
+                            if damage_info["is_critical"]:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{opponent.name}攻击{pet.name}，造成{damage}点伤害！\n"
+                            
+                            # 检查玩家是否被击败
+                            if not pet.is_alive():
+                                battle_log += f"{pet.name}被击败了！\n"
+                                break
+                            
+                            # 玩家攻击
+                            # 35%概率使用技能
+                            if random.random() < 0.35 and pet.skills and pet.skill_unlocked:
+                                skill = random.choice(pet.skills)
+                                # 玩家使用新技能系统
+                                if skill == "火焰焚烧":
+                                    skill_multiplier = 1.8
+                                    battle_log += f"{pet.name}使用了火焰焚烧！\n"
+                                    opponent.burn_turns = 2
+                                    battle_log += f"{opponent.name}被灼烧了，2回合内每回合会受到额外伤害！\n"
+                                elif skill == "巨浪淹没":
+                                    skill_multiplier = 1.1
+                                    battle_log += f"{pet.name}使用了巨浪淹没！\n"
+                                    opponent.heal_blocked_turns = 2
+                                    battle_log += f"{opponent.name}被禁疗了，2回合内无法使用治疗！\n"
+                                    if pet.defense_boost == 0:
+                                        pet.defense_boost = 0.3
+                                        battle_log += f"{pet.name}防御提升30%！\n"
+                                elif skill == "根须缠绕":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{pet.name}使用了根须缠绕！\n"
+                                    battle_log += f"{opponent.name}被根须缠绕，下回合无法行动！\n"
+                                    opponent.defense_boost = -0.2
+                                    battle_log += f"{opponent.name}防御降低20%！\n"
+                                elif skill == "大地堡垒":
+                                    skill_multiplier = 1.0
+                                    battle_log += f"{pet.name}使用了大地堡垒！\n"
+                                    shield_amount = int(pet.defense * 2.0)
+                                    battle_log += f"{pet.name}获得了{shield_amount}点护盾！\n"
+                                elif skill == "金属风暴":
+                                    skill_multiplier = 1.6
+                                    battle_log += f"{pet.name}使用了金属风暴！\n"
+                                    pet.crit_rate_boost = 0.3
+                                    battle_log += f"{pet.name}暴击率提升30%！\n"
+                                else:
+                                    skill_multiplier = 1.0
+                            else:
+                                skill_multiplier = 1.0
+                            
+                            damage_info = pet.calculate_damage(opponent, skill_multiplier)
+                            damage = damage_info["damage"]
+                            opponent.hp = max(0, opponent.hp - damage)
+                            if damage_info["is_critical"]:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点暴击伤害！(暴击率: {damage_info['critical_rate']:.1%}, 暴击伤害: {damage_info['critical_damage']:.0%})\n"
+                            else:
+                                battle_log += f"{pet.name}攻击{opponent.name}，造成{damage}点伤害！\n"
+                    
+                    # 添加生命值信息
+                    battle_log += f"{pet.name}剩余生命值={pet.hp}\n"
+                    battle_log += f"{opponent.name}剩余生命值={opponent.hp}\n"
+                    battle_log += "--------------------\n"
+                
+                # 战斗结果
+                if pet.is_alive():
+                    # 玩家获胜
+                    exp_gain = opponent.level * 20
+                    pet.exp += exp_gain
+                    
+                    # 检查是否升级
+                    level_up = False
+                    if pet.exp >= pet.level * 100:
+                        pet.level_up()
+                        level_up = True
+                    
+                    # 获得金币奖励
+                    coins_gain = opponent.level * 10
+                    pet.coins += coins_gain
+                    
+                    # 战斗结束后自动回满血
+                    pet.hp = 100 + pet.level * 20
+                    
+                    # 更新数据库
+                    self.db.update_pet_data(
+                        user_id,
+                        level=pet.level,
+                        exp=pet.exp,
+                        hp=pet.hp,
+                        attack=pet.attack,
+                        defense=pet.defense,
+                        speed=pet.speed,
+                        skills=pet.skills,
+                        coins=pet.coins
+                    )
+                    
+                    battle_log += f"\n战斗胜利！{pet.name}剩余生命值={pet.hp}\n"
+                    battle_log += f"战斗胜利！{pet.name}获得了{exp_gain}点经验值和{coins_gain}金币！"
+                    if level_up:
+                        battle_log += f"\n{pet.name}升级了！"
+                else:
+                    # 玩家失败
+                    battle_log += f"\n战斗失败！{pet.name}被击败了！"
+                    
+                    # 战斗结束后自动回满血
+                    pet.hp = 100 + pet.level * 20
+                    
+                    # 更新数据库
+                    self.db.update_pet_data(
+                        user_id,
+                        hp=pet.hp
+                    )
+                
+                result = battle_log
+            
+            yield event.plain_result(result)
+            
         except Exception as e:
-            logger.error(f"查询原神基本信息时发生错误：{e}")
-            return CommandResult().error("查询失败！可能是服务器问题！\n提醒：用户必须注册米游社/HoYoLAB，且开启了\"在战绩页面是否展示角色详情\"否则也会查询失败！！！")
-
-    @filter.command("查询原神深渊信息")
-    async def genshin_abyss_info(self, message: AstrMessageEvent):
-        """查询原神深渊信息"""
-        # 解析参数：查询原神深渊信息 游戏uid 所在服务器 深渊数据类型
-        msg = message.message_str.replace("查询原神深渊信息", "").strip()
-        
-        if not msg:
-            return CommandResult().error("正确指令为：查询原神深渊信息 游戏uid 所在服务器 深渊数据类型\n服务器有：官服 渠道服 美洲服 欧洲服 亚洲服 繁体中文服\n深渊数据类型提示：1为本期，2为上期\n\n示例：/查询原神深渊信息 123456 官服 1")
-        
-        # 分割参数
-        parts = msg.split()
-        if len(parts) < 3:
-            return CommandResult().error("正确指令为：查询原神深渊信息 游戏uid 所在服务器 深渊数据类型\n服务器有：官服 渠道服 美洲服 欧洲服 亚洲服 繁体中文服\n深渊数据类型提示：1为本期，2为上期\n\n示例：/查询原神深渊信息 123456 官服 1")
-        
-        # 提取UID、服务器和深渊数据类型
-        uid = parts[0]
-        server_name = parts[1]
-        abyss_type = parts[2]
-        
-        # 验证UID是否为数字
+            logger.error(f"探索失败: {str(e)}")
+            yield event.plain_result("探索失败了~请联系管理员检查日志")
+    
+    @filter.command("宠物背包")
+    async def pet_inventory(self, event: AstrMessageEvent):
+        """查看宠物背包"""
         try:
-            uid_int = int(uid)
-            if uid_int < 100000000:
-                return CommandResult().error("游戏UID格式不正确")
-        except ValueError:
-            return CommandResult().error("游戏UID必须是数字")
-        
-        # 服务器名称映射
-        server_mapping = {
-            "官服": "cn_gf01",
-            "渠道服": "cn_qd01", 
-            "美洲服": "os_usa",
-            "欧洲服": "os_euro",
-            "亚洲服": "os_asia",
-            "繁体中文服": "os_cht"
-        }
-        
-        # 验证服务器名称
-        if server_name not in server_mapping:
-            return CommandResult().error("正确指令为：查询原神深渊信息 游戏uid 所在服务器 深渊数据类型\n服务器有：官服 渠道服 美洲服 欧洲服 亚洲服 繁体中文服\n深渊数据类型提示：1为本期，2为上期\n\n示例：/查询原神深渊信息 123456 官服 1")
-        
-        # 验证深渊数据类型
-        if abyss_type not in ["1", "2"]:
-            return CommandResult().error("正确指令为：查询原神深渊信息 游戏uid 所在服务器 深渊数据类型\n服务器有：官服 渠道服 美洲服 欧洲服 亚洲服 繁体中文服\n深渊数据类型提示：1为本期，2为上期\n\n示例：/查询原神深渊信息 123456 官服 1")
-        
-        server_code = server_mapping[server_name]
-        abyss_type_int = int(abyss_type)
-        
-        # API配置
-        api_url = "https://api.nilou.moe/v1/bbs/genshin/AbyssInfo"
-        params = {
-            'uid': uid_int,
-            'server': server_code,
-            'type': abyss_type_int
-        }
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, params=params) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error("查询失败！可能是服务器问题！\n提醒：用户必须注册米游社/HoYoLAB，且开启了\"在战绩页面是否展示角色详情\"否则也会查询失败！！！")
-                    
-                    data = await resp.json()
-                    
-                    # 检查API响应
-                    if "data" not in data:
-                        return CommandResult().error("查询失败！可能是服务器问题！\n提醒：用户必须注册米游社/HoYoLAB，且开启了\"在战绩页面是否展示角色详情\"否则也会查询失败！！！")
-                    
-                    game_data = data["data"]
-                    
-                    # 构建深渊数据输出
-                    output = "深境螺旋数据整理（中文）\n"
-                    output += f"信息：{data.get('message', '成功')}\n"
-                    output += "数据详情：\n"
-                    
-                    # 格式化时间戳
-                    start_time = game_data.get('start_time', '')
-                    end_time = game_data.get('end_time', '')
-                    
-                    def format_timestamp(timestamp):
-                        if not timestamp:
-                            return '无数据'
-                        try:
-                            import datetime
-                            dt = datetime.datetime.fromtimestamp(int(timestamp), datetime.timezone(datetime.timedelta(hours=8)))
-                            return dt.strftime('%Y 年 %m 月 %d 日 %H:%M:%S（时间戳：' + str(timestamp) + '，北京时间）')
-                        except:
-                            return f'时间戳：{timestamp}'
-                    
-                    output += f"期数 ID：{game_data.get('schedule_id', '')}\n"
-                    output += f"开始时间：{format_timestamp(start_time)}\n"
-                    output += f"结束时间：{format_timestamp(end_time)}\n"
-                    output += f"总战斗次数：{game_data.get('total_battle_times', '')}\n"
-                    output += f"总胜利次数：{game_data.get('total_win_times', '')}\n"
-                    output += f"最高层数：{game_data.get('max_floor', '')}\n"
-                    
-                    # 处理排名数据
-                    reveal_rank = game_data.get('reveal_rank', [])
-                    defeat_rank = game_data.get('defeat_rank', [])
-                    damage_rank = game_data.get('damage_rank', [])
-                    take_damage_rank = game_data.get('take_damage_rank', [])
-                    normal_skill_rank = game_data.get('normal_skill_rank', [])
-                    energy_skill_rank = game_data.get('energy_skill_rank', [])
-                    
-                    output += f"元素爆发排名：{reveal_rank if reveal_rank else '[]（无数据）'}\n"
-                    output += f"击败敌人排名：{defeat_rank if defeat_rank else '[]（无数据）'}\n"
-                    output += f"造成伤害排名：{damage_rank if damage_rank else '[]（无数据）'}\n"
-                    output += f"承受伤害排名：{take_damage_rank if take_damage_rank else '[]（无数据）'}\n"
-                    output += f"普通攻击排名：{normal_skill_rank if normal_skill_rank else '[]（无数据）'}\n"
-                    output += f"元素战技排名：{energy_skill_rank if energy_skill_rank else '[]（无数据）'}\n"
-                    
-                    floors = game_data.get('floors', [])
-                    output += f"楼层详情：{floors if floors else '[]（无数据）'}\n"
-                    output += f"总星数：{game_data.get('total_star', '')}\n"
-                    output += f"已解锁：{'是' if game_data.get('is_unlock', False) else '否'}\n"
-                    output += f"刚跳过的楼层：{'是' if game_data.get('is_just_skipped_floor', False) else '否'}\n"
-                    output += f"跳过的楼层：{game_data.get('skipped_floor', '')}"
-                    
-                    return CommandResult().message(output)
-                        
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 获取用户背包
+            inventory = self.db.get_user_inventory(user_id)
+            
+            # 生成背包列表
+            inventory_list = "您的背包\n"
+            inventory_list += "--------------------\n"
+            inventory_list += "代币背包\n"
+            inventory_list += f"金币数量：{pet.coins}\n"
+            inventory_list += "--------------------\n"
+            inventory_list += "物品背包\n"
+            
+            # 检查物品背包是否为空
+            has_items = False
+            for item in inventory:
+                if item['quantity'] > 0:  # 只显示数量大于0的物品
+                    inventory_list += f"{item['name']}: {item['quantity']}\n"
+                    has_items = True
+            
+            if not has_items:
+                inventory_list += "您的物品背包空空如也\n"
+            
+            yield event.plain_result(inventory_list)
+            
         except Exception as e:
-            logger.error(f"查询原神深渊数据时发生错误：{e}")
-            return CommandResult().error("查询失败！可能是服务器问题！\n提醒：用户必须注册米游社/HoYoLAB，且开启了\"在战绩页面是否展示角色战绩\"否则也会查询失败！！！")
-
-
-
-    @filter.command("123网盘解析")
-    async def pan123_parse(self, message: AstrMessageEvent):
-        """123网盘直链解析"""
-        # 解析参数：123网盘解析 链接
-        msg = message.message_str.replace("123网盘解析", "").strip()
-        
-        # 检查是否提供了链接
-        if not msg:
-            return CommandResult().error("正确指令：123网盘解析 链接\n示例：123网盘解析 https://123.wq.cn")
-        
-        # 检查是否是有效的URL
-        if not msg.startswith(("http://", "https://")):
-            return CommandResult().error("正确指令：123网盘解析 链接\n示例：123网盘解析 https://123.wq.cn")
-        
-        # API配置
-        api_url = "https://api.pearktrue.cn/api/123panparse/"
-        params = {
-            "url": msg,
-            "pwd": "",
-            "Authorization": ""
-        }
-        
+            logger.error(f"查看宠物背包失败: {str(e)}")
+            yield event.plain_result("查看宠物背包失败了~请联系管理员检查日志")
+    
+    @filter.command("投喂")
+    async def feed_pet(self, event: AstrMessageEvent, item_name: str = None):
+        """投喂宠物"""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, params=params) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error("解析失败：服务器错误")
-                    
-                    data = await resp.json()
-                    
-                    # 检查API响应
-                    if data.get("code") != 200:
-                        return CommandResult().error("文件信息获取失败！！！\n可能是服务器出现问题！\n如果文件超过100mb也会出现失败！")
-                    
-                    # 获取解析结果
-                    result_data = data.get("data", {})
-                    download_url = result_data.get("downloadurl", "")
-                    filename = result_data.get("filename", "未知文件")
-                    size = result_data.get("size", "未知大小")
-                    
-                    # 构建输出结果
-                    output = "解析成功！\n"
-                    output += f"文件名：{filename}\n"
-                    output += f"文件大小：{size}\n"
-                    output += "直链链接：\n"
-                    output += download_url
-                    
-                    return CommandResult().message(output)
-                        
-        except aiohttp.ClientError as e:
-            logger.error(f"网络连接错误：{e}")
-            return CommandResult().error("无法连接到解析服务器，请稍后重试或检查网络连接")
-        except asyncio.TimeoutError:
-            logger.error("请求超时")
-            return CommandResult().error("解析超时，请稍后重试")
+            user_id = event.get_sender_id()
+            
+            # 检查参数
+            if not item_name:
+                yield event.plain_result("请使用格式: /投喂 [物品名]")
+                return
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 检查背包中是否有该物品
+            inventory = self.db.get_user_inventory(user_id)
+            item_found = False
+            for item in inventory:
+                if item['name'] == item_name and item['quantity'] > 0:
+                    item_found = True
+                    break
+            
+            if not item_found:
+                yield event.plain_result(f"您的背包中没有{item_name}！")
+                return
+            
+            # 使用物品
+            result = self.db.use_item_on_pet(user_id, item_name, pet)
+            
+            # 更新数据库
+            self.db.update_pet_data(
+                user_id,
+                hp=pet.hp,
+                hunger=pet.hunger,
+                mood=pet.mood
+            )
+            
+            yield event.plain_result(result)
+            
         except Exception as e:
-            logger.error(f"123网盘解析时发生错误：{e}")
-            return CommandResult().error(f"解析失败：{str(e)}")
-
-    @filter.command("识图")
-    async def ai_image_recognition(self, message: AstrMessageEvent):
-        """AI识图功能"""
-        # 获取消息对象
-        message_obj = message.message_obj
+            logger.error(f"投喂宠物失败: {str(e)}")
+            yield event.plain_result("投喂宠物失败了~请联系管理员检查日志")
+    
+    @filter.command("查看技能")
+    async def check_skills(self, event: AstrMessageEvent):
+        """查看宠物技能"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 返回技能列表
+            if pet.skills:
+                skills_list = "、".join(pet.skills)
+                yield event.plain_result(f"{pet.name}已学习的技能：{skills_list}")
+            else:
+                yield event.plain_result(f"{pet.name}还没有学习任何技能！")
+            
+        except Exception as e:
+            logger.error(f"查看技能失败: {str(e)}")
+            yield event.plain_result("查看技能失败了~请联系管理员检查日志")
+    
+    @filter.command("使用技能")
+    async def use_skill(self, event: AstrMessageEvent, skill_name: str = None):
+        """使用技能"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查参数
+            if not skill_name:
+                yield event.plain_result("请使用格式: /使用技能 [技能名]")
+                return
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 检查宠物是否拥有该技能
+            if skill_name not in pet.skills:
+                yield event.plain_result(f"{pet.name}没有学习过{skill_name}技能！")
+                return
+            
+            # 使用技能（这里可以添加具体的技能效果逻辑）
+            result = f"{pet.name}使用了{skill_name}技能！"
+            
+            # 根据技能类型添加效果
+            if skill_name in ['火焰焚烧', '巨浪淹没', '根须缠绕', '大地堡垒', '金属风暴']:
+                result += "\n技能效果：造成额外伤害！"
+            elif skill_name in ['大地堡垒']:
+                result += "\n技能效果：提升防御力！"
+            elif skill_name in ['巨浪淹没']:
+                result += "\n技能效果：恢复少量HP！"
+            elif skill_name in ['火焰焚烧']:
+                result += "\n技能效果：使对手进入异常状态！"
+            elif skill_name in ['根须缠绕']:
+                result += "\n技能效果：反弹部分伤害或持续恢复HP！"
+            elif skill_name in ['金属风暴']:
+                result += "\n技能效果：降低对手防御或命中率！"
+            elif skill_name in ['火焰焚烧', '巨浪淹没', '根须缠绕', '大地堡垒', '金属风暴']:
+                result += "\n技能效果：强大的范围攻击技能！"
+            else:
+                result += "\n技能效果：发挥出了不错的效果！"
+            
+            yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"使用技能失败: {str(e)}")
+            yield event.plain_result("使用技能失败了~请联系管理员检查日志")
+    
+    @filter.command("商店")
+    async def shop(self, event: AstrMessageEvent):
+        """查看商店物品"""
+        try:
+            # 获取商店物品列表
+            items = self.db.get_shop_items()
+            
+            if not items:
+                yield event.plain_result("商店暂时没有物品出售！")
+                return
+            
+            # 生成商店列表
+            shop_list = "欢迎来到宠物商店！\n"
+            shop_list += "物品列表：\n"
+            for item in items:
+                shop_list += f"{item['id']}. {item['name']} - {item['price']}金币\n"
+                shop_list += f"   {item['description']}\n\n"
+            
+            shop_list += "购买物品请使用: /购买 [物品ID]"
+            
+            yield event.plain_result(shop_list)
+            
+        except Exception as e:
+            logger.error(f"查看商店失败: {str(e)}")
+            yield event.plain_result("查看商店失败了~请联系管理员检查日志")
+    
+    @filter.command("购买")
+    async def buy_item(self, event: AstrMessageEvent, item_id: str = None):
+        """购买商店物品"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查参数
+            if not item_id:
+                yield event.plain_result("请使用格式: /购买 [物品ID]")
+                return
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 获取商店物品
+            items = self.db.get_shop_items()
+            item = None
+            for i in items:
+                if str(i['id']) == item_id:
+                    item = i
+                    break
+            
+            if not item:
+                yield event.plain_result("无效的物品ID！")
+                return
+            
+            # 检查金币是否足够
+            if pet.coins < item['price']:
+                yield event.plain_result(f"金币不足！您需要{item['price']}金币来购买{item['name']}。")
+                return
+            
+            # 扣除金币
+            pet.coins -= item['price']
+            
+            # 添加物品到背包
+            self.db.add_item_to_inventory(user_id, item['name'], 1)
+            
+            # 更新数据库
+            self.db.update_pet_data(user_id, coins=pet.coins)
+            
+            yield event.plain_result(f"成功购买{item['name']}！花费了{item['price']}金币，剩余金币：{pet.coins}")
+            
+        except Exception as e:
+            logger.error(f"购买物品失败: {str(e)}")
+            yield event.plain_result("购买物品失败了~请联系管理员检查日志")
+    
+    @filter.command("战斗设置")
+    async def battle_settings(self, event: AstrMessageEvent):
+        """查看战斗设置"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 返回战斗设置
+            settings = f"战斗中血量低于【{pet.auto_heal_threshold}】自动使用治疗瓶\n提示：如需修改数值，输入/修改最低血量 [数值]。如果不使用治疗瓶填入0即可"
+            yield event.plain_result(settings)
+            
+        except Exception as e:
+            logger.error(f"查看战斗设置失败: {str(e)}")
+            yield event.plain_result("查看战斗设置失败了~请联系管理员检查日志")
+    
+    @filter.command("修改最低血量")
+    async def modify_auto_heal_threshold(self, event: AstrMessageEvent, threshold: int = None):
+        """修改自动使用治疗瓶的最低血量阈值"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查参数
+            if threshold is None:
+                yield event.plain_result("请使用格式: /修改最低血量 [数值]")
+                return
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 更新阈值
+            pet.auto_heal_threshold = threshold
+            
+            # 更新数据库
+            self.db.update_pet_data(user_id, auto_heal_threshold=pet.auto_heal_threshold)
+            
+            # 返回结果
+            yield event.plain_result(f"已将自动使用治疗瓶的最低血量阈值修改为{threshold}")
+            
+        except Exception as e:
+            logger.error(f"修改最低血量失败: {str(e)}")
+            yield event.plain_result("修改最低血量失败了~请联系管理员检查日志")
+    
+    @filter.command("宠物背包")
+    async def pet_inventory(self, event: AstrMessageEvent):
+        """查看宠物背包"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 获取用户背包物品
+            inventory = self.db.get_user_inventory(user_id)
+            
+            # 生成背包信息
+            result = "您的背包\n"
+            result += "--------------------\n"
+            result += "代币背包\n"
+            result += f"金币数量：{pet.coins}\n"
+            result += "--------------------\n"
+            result += "物品背包\n"
+            
+            if inventory:
+                for item in inventory:
+                    result += f"{item['name']} x{item['quantity']}\n"
+            else:
+                result += "您的物品背包空空如也"
+            
+            yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"查看宠物背包失败: {str(e)}")
+            yield event.plain_result("查看宠物背包失败了~请联系管理员检查日志")
+    
+    @filter.command("宠物详细")
+    async def pet_details(self, event: AstrMessageEvent):
+        """显示宠物的详细信息"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 更新宠物状态
+            pet.update_status()
+            # 更新宠物属性
+            pet.update_stats()
+            
+            # 生成宠物详细信息
+            details = "您的宠物数值：\n"
+            details += f"战力值：{pet.attack + pet.defense + pet.speed}\n"
+            details += f"等级：{pet.level}\n"
+            details += f"经验值：{pet.exp}/{pet.level * 100}\n"
+            details += f"生命值：{pet.hp}\n"
+            details += f"攻击力：{pet.attack}\n"
+            details += f"防御力：{pet.defense}\n"
+            details += f"速度：{pet.speed}\n"
+            details += f"暴击率：{pet.critical_rate:.1%}\n"
+            details += f"暴击伤害：{pet.critical_damage:.0%}\n"
+            details += f"技能：{', '.join(pet.skills) if pet.skills else '无'}"
+            
+            # 更新数据库
+            self.db.update_pet_data(
+                user_id,
+                hp=pet.hp,
+                hunger=pet.hunger,
+                mood=pet.mood
+            )
+            
+            yield event.plain_result(details)
+            
+        except Exception as e:
+            logger.error(f"显示宠物详细信息失败: {str(e)}")
+            yield event.plain_result("显示宠物详细信息失败了~请联系管理员检查日志")
+    
+    @filter.command("探索")
+    async def explore(self, event: AstrMessageEvent):
+        """探索功能，触发随机事件"""
+        try:
+            user_id = event.get_sender_id()
+            
+            # 检查是否有宠物
+            if user_id not in self.pets:
+                yield event.plain_result("您还没有创建宠物！请先使用'领取宠物'命令")
+                return
+            
+            pet = self.pets[user_id]
+            
+            # 更新宠物状态
+            pet.update_status()
+            
+            # 检查冷却时间（探索有5分钟冷却）
+            now = datetime.now()
+            if hasattr(pet, 'last_explore_time'):
+                time_since_last_explore = (now - pet.last_explore_time).total_seconds() / 60  # 分钟
+                if time_since_last_explore < 5:
+                    remaining_time = int(5 - time_since_last_explore)
+                    yield event.plain_result(f"探索冷却中，请等待{remaining_time}分钟后再试！")
+                    return
+            
+            # 随机事件触发
+            event_type = random.random()
+            
+            # 好事件（20%总概率）
+            if event_type < 0.05:  # 5%概率 - 世外高人
+                result = await self._good_event_wise_man(pet)
+            elif event_type < 0.20:  # 15%概率 - 其他好事件
+                result = await self._good_event_random(pet)
+            # 坏事件（80%概率）
+            else:
+                result = await self._bad_event_battle(pet, user_id)
+            
+            # 更新探索时间
+            pet.last_explore_time = now
+            
+            # 更新数据库
+            self.db.update_pet_data(
+                user_id,
+                coins=pet.coins,
+                exp=pet.exp,
+                hp=pet.hp,
+                hunger=pet.hunger,
+                mood=pet.mood
+            )
+            
+            yield event.plain_result(result)
+            
+        except Exception as e:
+            logger.error(f"探索失败: {str(e)}")
+            yield event.plain_result("探索失败了~请联系管理员检查日志")
+    
+    async def _good_event_wise_man(self, pet):
+        """世外高人事件"""
+        coins_reward = 2000
+        exp_reward = random.randint(500, 1000)
         
-        # 查找图片对象
-        image_obj = None
-        for i in message_obj.message:
-            if isinstance(i, Image):
-                image_obj = i
+        pet.coins += coins_reward
+        pet.exp += exp_reward
+        
+        # 检查升级
+        level_up_result = ""
+        if pet.exp >= pet.level * 100:
+            old_level = pet.level
+            level_up_result = pet.level_up()
+            if "进化" in level_up_result:
+                level_up_result = f"\n{level_up_result}"
+            else:
+                level_up_result = f"\n{pet.name}从{old_level}级升到了{pet.level}级！"
+        
+        return f"🎭 探索事件：世外高人\n云游时碰到一位世外高人，他见你骨骼精奇，给了你一个储物袋！\n获得：金币【{coins_reward}】，经验【{exp_reward}】{level_up_result}"
+    
+    async def _good_event_random(self, pet):
+        """随机好事件"""
+        events = [
+            self._good_event_grandma,
+            self._good_event_medical_kit,
+            self._good_event_merchant,
+            self._good_event_little_girl
+        ]
+        
+        event_func = random.choice(events)
+        return await event_func(pet)
+    
+    async def _good_event_grandma(self, pet):
+        """老奶奶事件"""
+        coins_reward = random.randint(100, 240)
+        pet.coins += coins_reward
+        return f"👵 探索事件：善良老奶奶\n一个老奶奶见你可怜，给了你一些金币！\n获得：金币【{coins_reward}】"
+    
+    async def _good_event_medical_kit(self, pet):
+        """医疗箱事件"""
+        small_potions = random.randint(20, 50)
+        medium_potions = random.randint(10, 15)
+        large_potions = random.randint(1, 8)
+        
+        user_id = None
+        for uid, p in self.pets.items():
+            if p == pet:
+                user_id = uid
                 break
         
-        # 如果没有找到图片，返回错误信息
-        if not image_obj:
-            return CommandResult().error("正确指令：识图 你发的图片")
+        if user_id:
+            self.db.add_item_to_inventory(user_id, "小治疗瓶", small_potions)
+            self.db.add_item_to_inventory(user_id, "中治疗瓶", medium_potions)
+            self.db.add_item_to_inventory(user_id, "大治疗瓶", large_potions)
         
-        # API配置
-        api_url = "https://api.pearktrue.cn/api/airecognizeimg/"
+        return f"🎁 探索事件：医疗箱\n你在路边看到一个被丢弃的医疗箱！\n获得：小治疗瓶【{small_potions}瓶】，中治疗瓶【{medium_potions}瓶】，大治疗瓶【{large_potions}瓶】"
+    
+    async def _good_event_merchant(self, pet):
+        """商人事件"""
+        small_potions = random.randint(3, 8)
         
-        try:
-            # 设置超时
-            timeout = aiohttp.ClientTimeout(total=30)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                # 准备请求数据
-                payload = {
-                    "file": image_obj.url
-                }
-                
-                async with session.post(api_url, json=payload) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error("识图失败：服务器错误")
-                    
-                    data = await resp.json()
-                    
-                    # 检查API响应
-                    if data.get("code") != 200:
-                        msg = data.get("msg", "未知错误")
-                        return CommandResult().error(f"识图失败：{msg}")
-                    
-                    # 构建输出结果
-                    output = "状态信息：\n"
-                    output += f"{data.get('msg', '')}\n\n"
-                    output += "识别结果：\n"
-                    output += f"{data.get('result', '')}"
-                    
-                    return CommandResult().message(output)
-                        
-        except aiohttp.ClientError as e:
-            logger.error(f"网络连接错误：{e}")
-            return CommandResult().error("无法连接到识图服务器，请稍后重试或检查网络连接")
-        except asyncio.TimeoutError:
-            logger.error("请求超时")
-            return CommandResult().error("识图超时，请稍后重试")
-        except Exception as e:
-            logger.error(f"AI识图时发生错误：{e}")
-            return CommandResult().error(f"识图失败：{str(e)}")
-
-    @filter.command("方舟寻访")
-    async def arknights_recruitment(self, message: AstrMessageEvent):
-        """明日方舟寻访模拟功能"""
-        msg = message.message_str.replace("方舟寻访", "").strip()
+        user_id = None
+        for uid, p in self.pets.items():
+            if p == pet:
+                user_id = uid
+                break
         
-        # 卡池映射
-        pool_map = {
-            "1": "不归花火",
-            "2": "指令·重构", 
-            "3": "自火中归还",
-            "4": "她们渡船而来"
+        if user_id:
+            self.db.add_item_to_inventory(user_id, "小治疗瓶", small_potions)
+        
+        return f"🏪 探索事件：好心商人\n遇到一个好心的商人，他免费送给你一些治疗瓶！\n获得：小治疗瓶【{small_potions}瓶】"
+    
+    async def _good_event_little_girl(self, pet):
+        """小女孩事件"""
+        food_cans = random.randint(10, 15)
+        
+        user_id = None
+        for uid, p in self.pets.items():
+            if p == pet:
+                user_id = uid
+                break
+        
+        if user_id:
+            self.db.add_item_to_inventory(user_id, "美味罐头", food_cans)
+        
+        return f"👧 探索事件：可爱小女孩\n一个小女孩撞到了你，她给你道歉后送你美味罐头！\n获得：美味罐头【{food_cans}个】"
+    
+    async def _bad_event_battle(self, pet, user_id):
+        """坏事件战斗"""
+        events = [
+            self._bad_event_trap,
+            self._bad_event_goblin,
+            self._bad_event_evil_trainer,
+            self._bad_event_magic_eye_rabbit,
+            self._bad_event_twin_flower_vine
+        ]
+        
+        event_func = random.choice(events)
+        return await event_func(pet, user_id)
+    
+    async def _bad_event_trap(self, pet, user_id):
+        """陷阱事件"""
+        hp_loss = random.randint(20, 50)
+        pet.hp = max(1, pet.hp - hp_loss)  # 至少保留1点血量
+        
+        # 80%概率触发战斗
+        if random.random() < 0.8:
+            return await self._trigger_random_battle(pet, user_id, f"💀 探索事件：陷阱\n你掉进了陷阱！！减少了【{hp_loss}】血量。")
+        else:
+            return f"💀 探索事件：陷阱\n你掉进了陷阱！！减少了【{hp_loss}】血量。"
+    
+    async def _bad_event_goblin(self, pet, user_id):
+        """哥布林事件"""
+        return await self._trigger_random_battle(pet, user_id, "👹 探索事件：哥布林\n血量遇到了哥布林，你不得不和他对战！！！")
+    
+    async def _bad_event_evil_trainer(self, pet, user_id):
+        """邪恶训练师事件"""
+        return await self._trigger_random_battle(pet, user_id, "😈 探索事件：邪恶训练师\n碰到了邪恶训练师，你不得不和他对战！！！")
+    
+    async def _bad_event_magic_eye_rabbit(self, pet, user_id):
+        """魔眼兔事件"""
+        return await self._trigger_random_battle(pet, user_id, "🐰 探索事件：魔眼兔\n你发现了一只魔眼兔，你打算为民除害!")
+    
+    async def _bad_event_twin_flower_vine(self, pet, user_id):
+        """孖花藤事件"""
+        return await self._trigger_random_battle(pet, user_id, "🌿 探索事件：孖花藤\n你看到孖花藤，你怒火中烧，对他发起了战斗！")
+    
+    async def _trigger_random_battle(self, pet, user_id, prefix_message):
+        """触发随机战斗"""
+        # 随机敌人属性
+        enemy_types = ['金', '木', '水', '火', '土']
+        enemy_type = random.choice(enemy_types)
+        
+        # 计算敌人等级
+        if pet.level < 10:
+            level_variation = 1
+        else:
+            level_variation = 8
+        enemy_level = max(1, pet.level + random.randint(-level_variation, level_variation))
+        
+        # 创建敌人宠物
+        enemy_pet = self._create_enemy_pet(enemy_type, enemy_level)
+        
+        # 执行战斗
+        battle_result = await self._execute_battle(pet, enemy_pet, user_id)
+        
+        # 如果胜利，给予奖励
+        if "胜利" in battle_result:
+            reward_result = self._calculate_battle_rewards(pet)
+            return f"{prefix_message}\n{battle_result}\n{reward_result}"
+        else:
+            return f"{prefix_message}\n{battle_result}"
+    
+    def _create_enemy_pet(self, enemy_type, enemy_level):
+        """创建敌人宠物"""
+        # 基础属性
+        base_stats = {
+            "火": {"hp": 600, "attack": 158, "defense": 61, "speed": 125},
+            "水": {"hp": 643, "attack": 121, "defense": 83, "speed": 103},
+            "木": {"hp": 728, "attack": 101, "defense": 124, "speed": 83},
+            "土": {"hp": 813, "attack": 89, "defense": 103, "speed": 73},
+            "金": {"hp": 636, "attack": 144, "defense": 73, "speed": 134}
         }
         
-        # 默认卡池为1
-        pool = "1"
-        if msg:
-            if msg in pool_map:
-                pool = msg
+        base = base_stats[enemy_type]
+        
+        # 根据等级调整属性
+        hp = base["hp"] + (enemy_level - 1) * 50
+        attack = base["attack"] + (enemy_level - 1) * 8
+        defense = base["defense"] + (enemy_level - 1) * 5
+        speed = base["speed"] + (enemy_level - 1) * 6
+        
+        # 创建临时宠物对象
+        enemy_pet = type('EnemyPet', (), {
+            'name': f"{enemy_type}属性敌人",
+            'type': enemy_type,
+            'level': enemy_level,
+            'hp': hp,
+            'max_hp': hp,
+            'attack': attack,
+            'defense': defense,
+            'speed': speed,
+            'skills': []
+        })()
+        
+        return enemy_pet
+    
+    async def _execute_battle(self, player_pet, enemy_pet, user_id):
+        """执行战斗逻辑"""
+        # 简化的战斗逻辑
+        battle_log = f"⚔️ 战斗开始！{player_pet.name} VS {enemy_pet.name} (Lv.{enemy_pet.level})\n"
+        
+        # 判断先手
+        if player_pet.speed >= enemy_pet.speed:
+            attacker, defender = player_pet, enemy_pet
+            battle_log += f"{player_pet.name}速度更快，先手攻击！\n"
+        else:
+            attacker, defender = enemy_pet, player_pet
+            battle_log += f"{enemy_pet.name}速度更快，先手攻击！\n"
+        
+        # 战斗回合
+        round_count = 0
+        while player_pet.hp > 0 and enemy_pet.hp > 0 and round_count < 50:
+            round_count += 1
+            battle_log += f"\n--- 第{round_count}回合 ---\n"
+            
+            # 攻击者攻击
+            damage = max(1, attacker.attack - defender.defense)
+            defender.hp = max(0, defender.hp - damage)
+            battle_log += f"{attacker.name}对{defender.name}造成了{damage}点伤害！"
+            
+            if defender.hp <= 0:
+                battle_log += f" {defender.name}被击败了！"
+                break
             else:
-                return CommandResult().error(f"卡池选择错误，可选：\n1：不归花火\n2：指令·重构\n3：自火中归还\n4：她们渡船而来")
+                battle_log += f" {defender.name}剩余血量：{defender.hp}\n"
+            
+            # 交换攻防
+            attacker, defender = defender, attacker
         
-        # API配置 - 直接获取图片
-        api_url = "https://app.zichen.zone/api/headhunts/api.php"
-        params = {
-            "type": "img",
-            "pool": pool
-        }
+        # 判断战斗结果
+        if player_pet.hp > 0:
+            battle_log += f"\n🎉 战斗胜利！{player_pet.name}获得了胜利！"
+            return battle_log
+        else:
+            battle_log += f"\n💀 战斗失败！{player_pet.name}被击败了！"
+            return battle_log
+    
+    def _calculate_battle_rewards(self, pet):
+        """计算战斗奖励"""
+        # 基础奖励（1级）
+        base_exp_min = 18
+        base_exp_max = 24
+        base_coins_min = 40
+        base_coins_max = 120
         
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, params=params) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error(f"方舟寻访失败：服务器错误 (HTTP {resp.status})")
-                    
-                    # 直接读取图片数据
-                    image_data = await resp.read()
-                    
-                    # 保存图片到本地
-                    try:
-                        with open("arknights_recruitment.jpg", "wb") as f:
-                            f.write(image_data)
-                        return CommandResult().file_image("arknights_recruitment.jpg")
-                    except Exception as e:
-                        return CommandResult().error(f"保存图片失败: {e}")
-                        
-        except aiohttp.ClientError as e:
-            logger.error(f"网络连接错误：{e}")
-            return CommandResult().error("无法连接到方舟寻访服务器，请稍后重试或检查网络连接")
-        except asyncio.TimeoutError:
-            logger.error("请求超时")
-            return CommandResult().error("方舟寻访超时，请稍后重试")
-        except Exception as e:
-            logger.error(f"方舟寻访时发生错误：{e}")
-            return CommandResult().error(f"方舟寻访失败：{str(e)}")
-
-    @filter.command("随机游戏图片")
-    async def get_random_game_image(self, message: AstrMessageEvent):
-        """随机游戏图片"""
-        api_url = "https://api.52vmy.cn/api/img/tu/game"
+        # 根据等级计算奖励
+        level_multiplier = 1.2 ** (pet.level - 1)
+        exp_reward = random.randint(
+            int(base_exp_min * level_multiplier),
+            int(base_exp_max * level_multiplier)
+        )
+        coins_reward = random.randint(base_coins_min, base_coins_max)
         
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error(f"获取游戏图片失败: {resp.status}")
-                    
-                    # 解析JSON响应
-                    try:
-                        data = await resp.json()
-                    except json.JSONDecodeError as e:
-                        logger.error(f"JSON解析错误：{e}")
-                        return CommandResult().error("获取游戏图片失败：服务器返回了无效的JSON格式")
-                    
-                    # 检查API响应
-                    if data.get("code") != 200:
-                        msg = data.get("msg", "未知错误")
-                        return CommandResult().error(f"获取游戏图片失败：{msg}")
-                    
-                    # 获取图片URL
-                    image_url = data.get("url")
-                    if not image_url:
-                        return CommandResult().error("获取游戏图片失败：未获取到图片URL")
-                    
-                    # 下载图片
-                    try:
-                        async with session.get(image_url) as img_resp:
-                            if img_resp.status != 200:
-                                return CommandResult().error(f"下载图片失败：HTTP {img_resp.status}")
-                            
-                            # 读取图片数据
-                            image_data = await img_resp.read()
-                            
-                            # 保存图片到本地
-                            with open("random_game_image.jpg", "wb") as f:
-                                f.write(image_data)
-                            
-                            return CommandResult().file_image("random_game_image.jpg")
-                    
-                    except Exception as e:
-                        return CommandResult().error(f"下载或保存图片失败: {e}")
-                        
-        except aiohttp.ClientError as e:
-            logger.error(f"网络连接错误：{e}")
-            return CommandResult().error("无法连接到游戏图片服务器，请稍后重试或检查网络连接")
-        except asyncio.TimeoutError:
-            logger.error("请求超时")
-            return CommandResult().error("获取游戏图片超时，请稍后重试")
-        except Exception as e:
-            logger.error(f"获取游戏图片时发生错误：{e}")
-            return CommandResult().error(f"获取游戏图片失败：{str(e)}")
-
-    @filter.command("搜图")
-    async def search_360_image(self, message: AstrMessageEvent):
-        """360搜图功能"""
-        # 获取关键词
-        keyword = message.message_str.replace("搜图", "").strip()
+        # 给予奖励
+        pet.exp += exp_reward
+        pet.coins += coins_reward
         
-        # 如果没有提供关键词，返回错误信息
-        if not keyword:
-            return CommandResult().error("正确指令：搜图 关键词")
+        # 检查升级
+        level_up_result = ""
+        if pet.exp >= pet.level * 100:
+            old_level = pet.level
+            level_up_result = pet.level_up()
+            if "进化" in level_up_result:
+                level_up_result = f"\n{level_up_result}"
+            else:
+                level_up_result = f"\n{pet.name}从{old_level}级升到了{pet.level}级！"
         
-        # API配置
-        api_url = "https://api.52vmy.cn/api/img/360"
-        params = {
-            "msg": keyword
-        }
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, params=params) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error(f"搜图失败：服务器错误 (HTTP {resp.status})")
-                    
-                    # 解析JSON响应
-                    try:
-                        data = await resp.json()
-                    except json.JSONDecodeError as e:
-                        logger.error(f"JSON解析错误：{e}")
-                        return CommandResult().error("搜图失败：服务器返回了无效的JSON格式")
-                    
-                    # 检查API响应
-                    if data.get("code") != 200:
-                        msg = data.get("msg", "未知错误")
-                        return CommandResult().error(f"搜图失败：{msg}")
-                    
-                    # 获取图片URL
-                    if "data" not in data or "url" not in data["data"]:
-                        return CommandResult().error("搜图失败：未获取到图片URL")
-                    
-                    image_url = data["data"]["url"]
-                    
-                    # 下载图片
-                    try:
-                        async with session.get(image_url) as img_resp:
-                            if img_resp.status != 200:
-                                return CommandResult().error(f"下载图片失败：HTTP {img_resp.status}")
-                            
-                            # 读取图片数据
-                            image_data = await img_resp.read()
-                            
-                            # 保存图片到本地
-                            with open("360_search_image.jpg", "wb") as f:
-                                f.write(image_data)
-                            
-                            return CommandResult().file_image("360_search_image.jpg")
-                    
-                    except Exception as e:
-                        return CommandResult().error(f"下载或保存图片失败: {e}")
-                        
-        except aiohttp.ClientError as e:
-            logger.error(f"网络连接错误：{e}")
-            return CommandResult().error("无法连接到搜图服务器，请稍后重试或检查网络连接")
-        except asyncio.TimeoutError:
-            logger.error("请求超时")
-            return CommandResult().error("搜图超时，请稍后重试")
-        except Exception as e:
-            logger.error(f"搜图时发生错误：{e}")
-            return CommandResult().error(f"搜图失败：{str(e)}")
-
-    @filter.command("随机漫剪")
-    async def random_anime_clip(self, message: AstrMessageEvent):
-        """随机漫剪功能"""
-        # API配置
-        api_url = "http://api.xiaomei520.sbs/api/随机漫剪/?"
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error(f"获取随机漫剪失败：服务器错误 (HTTP {resp.status})")
-                    
-                    # 直接读取视频数据
-                    video_data = await resp.read()
-                    
-                    # 保存视频到本地
-                    try:
-                        with open("random_anime_clip.mp4", "wb") as f:
-                            f.write(video_data)
-                        return CommandResult().file_video("random_anime_clip.mp4")
-                    except Exception as e:
-                        return CommandResult().error(f"保存视频失败: {e}")
-                        
-        except aiohttp.ClientError as e:
-            logger.error(f"网络连接错误：{e}")
-            return CommandResult().error("无法连接到随机漫剪服务器，请稍后重试或检查网络连接")
-        except asyncio.TimeoutError:
-            logger.error("请求超时")
-            return CommandResult().error("获取随机漫剪超时，请稍后重试")
-        except Exception as e:
-            logger.error(f"获取随机漫剪时发生错误：{e}")
-            return CommandResult().error(f"获取随机漫剪失败：{str(e)}")
+        return f"🏆 战斗奖励：经验【{exp_reward}】，金币【{coins_reward}】{level_up_result}"
